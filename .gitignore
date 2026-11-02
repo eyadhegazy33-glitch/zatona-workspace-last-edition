@@ -1,0 +1,11 @@
+node_modules
+dist
+.venv/
+.vercel/
+employee_portal/
+.env
+.env.*
+*.local
+test-results/
+playwright-report/
+.DS_Store

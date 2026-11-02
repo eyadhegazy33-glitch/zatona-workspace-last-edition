@@ -1,0 +1,788 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 49 92 69;
+    --color-secondary: 32 39 33;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-canvas text-ink dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  button,
+  select {
+    font: inherit;
+  }
+}
+
+.customer-print-area {
+  display: none;
+}
+
+.customer-print-pages {
+  display: none;
+}
+
+.order-ticket {
+  display: none;
+}
+
+.ticket-brand {
+  break-inside: avoid;
+  padding-bottom: 4mm;
+  text-align: center;
+  border-bottom: 1px dashed #94a3b8;
+}
+
+.ticket-logo {
+  display: block;
+  width: 18mm;
+  height: 18mm;
+  margin: 0 auto 2mm;
+  object-fit: contain;
+}
+
+.ticket-brand-name {
+  margin: 0;
+  font-size: 15pt;
+  font-weight: 800;
+}
+
+.ticket-subtitle {
+  margin: 1mm 0 0;
+  color: #475569;
+  font-size: 9pt;
+  font-weight: 600;
+}
+
+.ticket-order-heading {
+  padding: 4mm 0 3mm;
+  text-align: center;
+}
+
+.ticket-order-number {
+  margin: 0;
+  font-size: 15pt;
+  font-weight: 800;
+}
+
+.ticket-order-date,
+.ticket-order-status {
+  margin: 1mm 0 0;
+  color: #475569;
+  font-size: 8.5pt;
+}
+
+.ticket-order-status {
+  color: #166534;
+  font-weight: 700;
+}
+
+.ticket-customer {
+  display: grid;
+  gap: 1.5mm;
+  padding: 3mm 0;
+  border-top: 1px dashed #94a3b8;
+  border-bottom: 1px dashed #94a3b8;
+}
+
+.ticket-customer p,
+.ticket-totals p {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-items {
+  padding: 3mm 0;
+  border-bottom: 1px dashed #94a3b8;
+}
+
+.ticket-items h2 {
+  margin: 0 0 2mm;
+  font-size: 9pt;
+  text-transform: uppercase;
+}
+
+.ticket-item {
+  padding: 1.5mm 0;
+}
+
+.ticket-item-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ticket-item-note {
+  margin: 1mm 0 0;
+  color: #475569;
+  font-size: 8pt;
+}
+
+.ticket-note {
+  margin-top: 3mm;
+  padding: 2mm;
+  border-inline-start: 1mm solid rgb(var(--color-primary));
+  background: #f1f5f9;
+  overflow-wrap: anywhere;
+}
+
+.ticket-totals {
+  display: grid;
+  gap: 1.5mm;
+  padding-top: 3mm;
+}
+
+.ticket-grand-total {
+  margin-top: 1mm !important;
+  padding-top: 2mm;
+  border-top: 1px solid #334155;
+  font-size: 12pt;
+}
+
+.ticket-footer {
+  margin-top: 4mm;
+  padding-top: 3mm;
+  border-top: 1px dashed #94a3b8;
+  color: #475569;
+  font-size: 8pt;
+  text-align: center;
+}
+
+.customer-card {
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  width: 85.6mm;
+  height: 54mm;
+  overflow: visible;
+  border: 1px solid rgb(var(--color-secondary));
+  border-radius: 2mm;
+  background: linear-gradient(
+    135deg,
+    rgb(var(--color-primary)),
+    rgb(var(--color-secondary))
+  );
+  color: #fff;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 18%);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.customer-card::after {
+  position: absolute;
+  z-index: 1;
+  inset: -1.5mm;
+  display: none;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(#64748b, #64748b) left top / 3mm 0.15mm,
+    linear-gradient(#64748b, #64748b) left top / 0.15mm 3mm,
+    linear-gradient(#64748b, #64748b) right top / 3mm 0.15mm,
+    linear-gradient(#64748b, #64748b) right top / 0.15mm 3mm,
+    linear-gradient(#64748b, #64748b) left bottom / 3mm 0.15mm,
+    linear-gradient(#64748b, #64748b) left bottom / 0.15mm 3mm,
+    linear-gradient(#64748b, #64748b) right bottom / 3mm 0.15mm,
+    linear-gradient(#64748b, #64748b) right bottom / 0.15mm 3mm;
+  background-repeat: no-repeat;
+}
+
+.customer-card-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 3mm;
+}
+
+.customer-card-name {
+  display: -webkit-box;
+  max-height: 2.3em;
+  overflow: hidden;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-card-qr {
+  display: grid;
+  width: 24mm;
+  height: 24mm;
+  place-items: center;
+  border: 1mm solid #fff;
+  border-radius: 1mm;
+  background: #fff;
+  padding: 1mm;
+}
+
+.customer-card-back {
+  flex-direction: column;
+  padding: 4mm;
+}
+
+@media screen and (max-width: 640px) {
+  .customer-card {
+    width: min(85.6mm, 100%);
+    height: auto;
+    aspect-ratio: 85.6 / 54;
+  }
+
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body > *:not(#customer-print-area):not(#customer-print-pages):not(.order-ticket) {
+    display: none !important;
+  }
+
+  #customer-print-area,
+  #customer-print-pages {
+    position: static !important;
+    display: block !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    color: #111827 !important;
+    visibility: visible !important;
+  }
+
+  #customer-print-area *,
+  #customer-print-pages * {
+    visibility: visible !important;
+  }
+
+  .customer-print-area,
+  .customer-print-pages {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .customer-print-sheet {
+    display: grid;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+
+  .customer-print-sheet:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .customer-card {
+    box-sizing: border-box;
+    display: flex !important;
+    flex: none !important;
+    width: 85.6mm;
+    height: 54mm;
+    min-width: 85.6mm;
+    min-height: 54mm;
+    max-width: 85.6mm;
+    max-height: 54mm;
+    margin: 0;
+    overflow: hidden;
+    border: 0.3mm solid rgb(var(--color-secondary));
+    border-radius: 2mm;
+    background-color: rgb(var(--color-primary));
+    background-image: linear-gradient(
+      135deg,
+      rgb(var(--color-primary)),
+      rgb(var(--color-secondary))
+    );
+    color: #fff !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .customer-card::after {
+    display: none !important;
+  }
+
+  .customer-card-content {
+    display: flex !important;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    padding: 3mm;
+  }
+
+  .customer-card-qr {
+    display: grid !important;
+    width: 24mm;
+    height: 24mm;
+    flex: none;
+    place-items: center;
+    border: 1mm solid #fff;
+    background: #fff;
+    padding: 1mm;
+  }
+
+  .customer-card-qr img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+  }
+
+  .customer-card img {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .customer-card p,
+  .customer-card span,
+  .customer-card header {
+    color: inherit;
+  }
+
+  .customer-card-back {
+    display: flex !important;
+    flex-direction: column;
+    padding: 4mm;
+  }
+
+  .customer-card-back header {
+    border-color: rgb(255 255 255 / 45%) !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@page order-ticket {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  body.printing-order-ticket > *:not(.order-ticket) {
+    display: none !important;
+  }
+
+  html:has(body.printing-order-ticket),
+  body.printing-order-ticket {
+    width: 80mm !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body.printing-order-ticket > .order-ticket {
+    box-sizing: border-box !important;
+    position: static !important;
+    display: block !important;
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    color: #111 !important;
+    background: #fff !important;
+    font: 10pt/1.35 ui-sans-serif, system-ui, sans-serif !important;
+    visibility: visible !important;
+    page: order-ticket;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-order-ticket > .order-ticket * {
+    visibility: visible !important;
+  }
+}
+
+.payment-receipt {
+  display: none;
+}
+
+.payment-receipt-screen {
+  display: block;
+  box-sizing: border-box;
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  color: #111827;
+  background: #fff;
+}
+
+.dark .payment-receipt-screen {
+  border-color: #334155;
+  color: #f8fafc;
+  background: #0f172a;
+}
+
+.payment-receipt-brand {
+  text-align: center;
+}
+
+.payment-receipt-brand h1 {
+  margin: 0.4rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.payment-receipt-brand p {
+  margin: 0.25rem 0;
+}
+
+.payment-receipt-logo {
+  display: block;
+  width: auto;
+  max-width: 32mm;
+  max-height: 20mm;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.payment-receipt-meta,
+.payment-receipt-payment {
+  margin-top: 1rem;
+  padding-block: 0.75rem;
+  border-block: 1px dashed #9ca3af;
+}
+
+.payment-receipt-meta p,
+.payment-receipt-payment p {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.2rem 0;
+}
+
+.payment-receipt-lines {
+  margin-top: 1rem;
+}
+
+.payment-receipt-table-head,
+.payment-receipt-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 0.4rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.payment-receipt-table-head {
+  font-weight: 700;
+}
+
+.payment-receipt-line > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.payment-receipt-fee-note {
+  margin-top: 0.4rem;
+  color: #4b5563;
+  font-size: 0.8em;
+}
+
+.payment-receipt-totals {
+  margin-top: 0.75rem;
+}
+
+.payment-receipt-totals p {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.3rem 0;
+}
+
+.payment-receipt-total {
+  margin-top: 0.6rem !important;
+  padding-top: 0.6rem;
+  border-top: 2px solid #111827;
+  font-size: 1.15em;
+}
+
+.payment-receipt-note {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border: 1px dashed #9ca3af;
+  overflow-wrap: anywhere;
+}
+
+.payment-receipt-footer {
+  margin-top: 1.25rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.payment-receipt-voided {
+  margin-bottom: 1rem;
+  border: 3px solid #b91c1c;
+  color: #b91c1c;
+  font-size: 2.5rem;
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+}
+
+@page receipt-thermal {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@page receipt-a4 {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+.shift-summary-print {
+  display: none;
+  box-sizing: border-box;
+  color: #111827;
+  background: #fff;
+  font: 10pt/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+
+.shift-summary-print h1,
+.shift-summary-print h2 {
+  margin: 0.4rem 0;
+  text-align: center;
+}
+
+.shift-summary-print p {
+  margin: 0.35rem 0;
+}
+
+.shift-summary-logo {
+  display: block;
+  max-width: 35mm;
+  max-height: 20mm;
+  margin: 0 auto 0.75rem;
+  object-fit: contain;
+}
+
+.shift-summary-difference {
+  font-weight: 700;
+}
+
+@page shift-summary-thermal {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@page shift-summary-a4 {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  body.printing-shift-summary > *:not(.shift-summary-print) {
+    display: none !important;
+  }
+
+  html:has(body.printing-shift-summary),
+  body.printing-shift-summary {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body.printing-shift-summary > .shift-summary-print {
+    position: static !important;
+    display: block !important;
+    margin: 0 auto !important;
+    color: #111827 !important;
+    background: #fff !important;
+    visibility: visible !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-shift-summary > .shift-summary-print * {
+    visibility: visible !important;
+  }
+
+  body.printing-shift-summary.shift-summary-layout-thermal {
+    width: 80mm !important;
+  }
+
+  body.printing-shift-summary.shift-summary-layout-a4 {
+    width: 186mm !important;
+  }
+
+  body.shift-summary-layout-thermal > .shift-summary-print {
+    width: 80mm !important;
+    padding: 3mm !important;
+    page: shift-summary-thermal;
+  }
+
+  body.shift-summary-layout-a4 > .shift-summary-print {
+    width: 186mm !important;
+    min-height: 273mm;
+    padding: 5mm !important;
+    page: shift-summary-a4;
+  }
+
+  body.printing-payment-receipt > *:not(.payment-receipt) {
+    display: none !important;
+  }
+
+  html:has(body.printing-payment-receipt),
+  body.printing-payment-receipt {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  html:has(body.printing-payment-receipt.receipt-layout-thermal),
+  body.printing-payment-receipt.receipt-layout-thermal {
+    width: 80mm !important;
+  }
+
+  html:has(body.printing-payment-receipt.receipt-layout-a4) {
+    width: 210mm !important;
+  }
+
+  body.printing-payment-receipt.receipt-layout-a4 {
+    width: 186mm !important;
+  }
+
+  body.printing-payment-receipt > .payment-receipt {
+    position: static !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+    color: #111827 !important;
+    background: #fff !important;
+    font: 10pt/1.35 ui-sans-serif, system-ui, sans-serif !important;
+    visibility: visible !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-payment-receipt > .payment-receipt * {
+    visibility: visible !important;
+  }
+
+  .payment-receipt-screen {
+    display: none !important;
+  }
+
+  body.receipt-layout-thermal > .payment-receipt {
+    width: 80mm !important;
+    padding: 3mm !important;
+    page: receipt-thermal;
+  }
+
+  body.receipt-layout-a4 > .payment-receipt {
+    width: 186mm !important;
+    min-height: 273mm;
+    padding: 5mm !important;
+    page: receipt-a4;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html:has(.dashboard-print-content),
+  body:has(.dashboard-print-content) {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body:has(.dashboard-print-content) > *:not(#customer-print-area):not(#customer-print-pages):not(.order-ticket) {
+    display: block !important;
+  }
+
+  #root:has(.dashboard-print-content) {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .dashboard-print-content {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    color: #111827 !important;
+    background: #fff !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .dashboard-print-content * {
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  .dashboard-print-content article,
+  .dashboard-print-content section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .dashboard-print-content article {
+    background: #fff !important;
+  }
+}
