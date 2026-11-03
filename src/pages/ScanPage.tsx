@@ -532,7 +532,7 @@ export function ScanPage() {
               try {
                 const startPromise = scanner.start(
                   { deviceId: { exact: device.id } },
-                  { fps: 12, qrbox: { width: 260, height: 260 } },
+                  { fps: 30, qrbox: { width: 800, height: 800 } },
                   async (decodedText) => {
                     await handleScanValueRef.current(decodedText);
                   },
