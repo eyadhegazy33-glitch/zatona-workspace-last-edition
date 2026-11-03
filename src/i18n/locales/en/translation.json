@@ -1824,6 +1824,8 @@
     "sortBy": "Sort by {{label}}",
     "export": "Export to Excel",
     "exporting": "Preparing export…",
+    "exportSuccess": "Excel download started for {{count}} receipts.",
+    "noReceiptsToExport": "No receipts to export for the selected filters.",
     "exportLimit": "The export is limited to the first 5,000 matching receipts.",
     "detailTitle": "Receipt details",
     "close": "Close",

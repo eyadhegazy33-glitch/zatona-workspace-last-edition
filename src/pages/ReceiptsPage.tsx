@@ -95,6 +95,7 @@ export function ReceiptsPage() {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState(false);
   const [exportTruncated, setExportTruncated] = useState(false);
+  const [exportResultCount, setExportResultCount] = useState<number | null>(null);
 
   const loadReceipts = useCallback(async () => {
     setLoading(true);
@@ -214,8 +215,22 @@ export function ReceiptsPage() {
     setExportBusy(true);
     setExportError(false);
     setExportTruncated(false);
+    setExportResultCount(null);
     try {
-      const result = await listReceipts(filters, 0, 5000);
+      const exportFilters = preset === "all" || preset === "custom"
+        ? filters
+        : {
+            ...filters,
+            ...dateBoundaries(
+              preset,
+              receiptSettings?.timeZone ?? "Africa/Cairo",
+            ),
+          };
+      const result = await listReceipts(exportFilters, 0, 5000);
+      if (result.total_count === 0) {
+        setExportResultCount(0);
+        return;
+      }
       const headers = [
         t("receiptsBrowser.number"),
         t("receiptsBrowser.date"),
@@ -236,6 +251,7 @@ export function ReceiptsPage() {
       ]);
       writeReceiptExport(headers, rows);
       setExportTruncated(result.total_count > result.rows.length);
+      setExportResultCount(result.rows.length);
     } catch {
       setExportError(true);
     } finally {
@@ -421,6 +437,13 @@ export function ReceiptsPage() {
       {exportTruncated && (
         <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="status">
           {t("receiptsBrowser.exportLimit")}
+        </p>
+      )}
+      {exportResultCount !== null && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200" role="status">
+          {exportResultCount === 0
+            ? t("receiptsBrowser.noReceiptsToExport")
+            : t("receiptsBrowser.exportSuccess", { count: exportResultCount })}
         </p>
       )}
 
