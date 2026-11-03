@@ -27,7 +27,6 @@ import {
 } from "recharts";
 import { useAuth } from "../hooks/useAuth";
 import { getSupabaseClient } from "../lib/supabase";
-import { writeDashboardExport } from "../lib/sheetjs";
 import { addCalendarDays, formatCalendarDate, getDatePartsInTimeZone, startOfDateInTimeZone } from "../lib/zonedDate";
 import { formatMoney as formatCurrency } from "../lib/formatMoney";
 import { getOperationalRulesSettings } from "../services/settings";
@@ -195,6 +194,9 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [exportError, setExportError] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const selectedRange = useMemo(
@@ -329,8 +331,10 @@ export function DashboardPage() {
     setPreset("custom");
   };
 
-  const exportDashboard = () => {
+  const exportDashboard = async () => {
     setExportError(false);
+    setExported(false);
+    setExporting(true);
     try {
       const sheets: Array<{ name: string; headers: string[]; rows: Array<Array<string | number>> }> = [];
       if (occupancyOnly) {
@@ -403,9 +407,13 @@ export function DashboardPage() {
           rows: data.ordersPerUser.map((row) => [row.user_name, row.orders_count, row.total]),
         });
       }
+      const { writeDashboardExport } = await import("../lib/sheetjs");
       writeDashboardExport(sheets, "zatona_dashboard.xlsx");
+      setExported(true);
     } catch {
       setExportError(true);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -479,14 +487,15 @@ export function DashboardPage() {
           <p className="hidden text-xs text-slate-500 print:block">{relativeRangeLabel(selectedRange.from, selectedRange.to, i18n.language, timeZone)}</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
-          <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800" disabled={loading} onClick={exportDashboard} type="button"><Download aria-hidden="true" size={16} />{t("dashboard.export.button")}</button>
-          <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800" onClick={() => window.print()} type="button"><Printer aria-hidden="true" size={16} />{t("dashboard.export.print")}</button>
+          <button aria-busy={exporting} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800" disabled={loading || exporting} onClick={() => void exportDashboard()} type="button"><Download aria-hidden="true" size={16} />{exporting ? t("dashboard.export.preparing") : t("dashboard.export.button")}</button>
+          <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800" disabled={loading} onClick={() => setShowPrintPreview(true)} type="button"><Printer aria-hidden="true" size={16} />{t("dashboard.export.print")}</button>
         </div>
       </header>
 
       {dateRangeControls}
       {error && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">{t("dashboard.errors.load")} <button className="ms-2 font-semibold underline" onClick={() => void refresh()} type="button">{t("dashboard.actions.retry")}</button></p>}
       {exportError && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">{t("dashboard.errors.export")}</p>}
+      {exported && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">{t("dashboard.export.downloaded")}</p>}
 
       {!occupancyOnly && (
         <section aria-label={t("dashboard.kpis.heading")} className="mt-5">
@@ -633,6 +642,86 @@ export function DashboardPage() {
             </ul>
           )}
         </section>
+      )}
+
+      {showPrintPreview && (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/60 p-4 print:hidden"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowPrintPreview(false);
+          }}
+        >
+          <section
+            aria-labelledby="dashboard-print-preview-title"
+            aria-modal="true"
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-7"
+            dir={i18n.dir()}
+            role="dialog"
+          >
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-ink dark:text-white" id="dashboard-print-preview-title">
+                  {t("dashboard.export.previewTitle")}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {relativeRangeLabel(selectedRange.from, selectedRange.to, i18n.language, timeZone)}
+                </p>
+              </div>
+              <button
+                aria-label={t("dashboard.export.closePreview")}
+                className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-semibold dark:border-slate-700"
+                onClick={() => setShowPrintPreview(false)}
+                type="button"
+              >
+                {t("dashboard.export.closePreview")}
+              </button>
+            </header>
+            {data.summary ? (
+              <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+                {[
+                  [t("dashboard.kpis.revenue"), formatMoney(data.summary.revenue)],
+                  [t("dashboard.kpis.orderRevenue"), formatMoney(data.summary.revenue_orders)],
+                  [t("dashboard.kpis.feeRevenue"), formatMoney(data.summary.revenue_fees)],
+                  [t("dashboard.kpis.receipts"), formatNumber(data.summary.receipts_count, i18n.language)],
+                  [t("dashboard.kpis.orders"), formatNumber(data.summary.orders_count, i18n.language)],
+                  [t("dashboard.kpis.inside"), formatNumber(data.summary.inside_now, i18n.language)],
+                  [t("dashboard.kpis.overdue"), formatNumber(data.summary.overdue_now, i18n.language)],
+                  [t("dashboard.kpis.incidents"), formatNumber(data.summary.open_incidents, i18n.language)],
+                  [t("dashboard.kpis.alerts"), formatNumber(data.summary.open_alerts, i18n.language)],
+                  [t("dashboard.kpis.lowStock"), formatNumber(data.summary.low_stock, i18n.language)],
+                ].map(([label, value]) => (
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" key={label}>
+                    <dt className="text-sm text-slate-500 dark:text-slate-400">{label}</dt>
+                    <dd className="mt-1 text-lg font-bold text-ink dark:text-white">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+                {[
+                  [t("dashboard.occupancy.seats"), `${occupancySummary.seats_used} / ${occupancySummary.seats_total}`],
+                  [t("dashboard.occupancy.rooms"), `${occupancySummary.rooms_used} / ${occupancySummary.rooms_total}`],
+                  [t("dashboard.occupancy.tables"), `${occupancySummary.tables_used} / ${occupancySummary.tables_total}`],
+                ].map(([label, value]) => (
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" key={label}>
+                    <dt className="text-sm text-slate-500 dark:text-slate-400">{label}</dt>
+                    <dd className="mt-1 text-lg font-bold text-ink dark:text-white">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white"
+                onClick={() => window.print()}
+                type="button"
+              >
+                <Printer aria-hidden="true" size={16} />
+                {t("dashboard.export.printNow")}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </section>
   );

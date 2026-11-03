@@ -47,6 +47,7 @@
       "requestReward": "Request this reward",
       "requesting": "Sending request…",
       "historyTitle": "Points activity",
+      "refresh": "Refresh balance and history",
       "noHistory": "Your points activity will appear here.",
       "redemptionsTitle": "Reward requests",
       "noRedemptions": "You have not requested a reward yet."
@@ -101,7 +102,9 @@
     "earnRate": {
       "title": "Points earning rate",
       "help": "Points are earned from paid order amounts only. Fees do not earn points. Fractions are rounded down.",
-      "label": "Points per 1 unit of currency"
+      "label": "Points per 1 unit of currency",
+      "saved": "Earning rate saved: {{rate}} points per currency unit.",
+      "refreshError": "The rate was saved, but the management page could not verify the latest saved value."
     },
     "reward": {
       "newTitle": "Create a reward",
@@ -133,7 +136,9 @@
       "customerCode": "Customer ID",
       "points": "Points to add or remove",
       "reason": "Reason",
-      "submit": "Record adjustment"
+      "submit": "Record adjustment",
+      "success": "Adjustment of {{points}} points recorded. Updated balance: {{balance}} points.",
+      "refreshError": "The adjustment was saved, but the management view could not refresh. The updated balance is confirmed above."
     },
     "redemptions": {
       "title": "Pending reward requests",
@@ -154,6 +159,7 @@
     "retry": "Retry",
     "export": "Export CSV",
     "exporting": "Preparing CSV…",
+    "exported": "Downloaded {{count}} filtered audit records as CSV.",
     "columns": {
       "time": "Time",
       "user": "User",
@@ -414,6 +420,11 @@
     "export": {
       "button": "Export to Excel",
       "print": "Print / PDF",
+      "preparing": "Preparing Excel export…",
+      "downloaded": "Dashboard export downloaded.",
+      "previewTitle": "Dashboard print preview",
+      "closePreview": "Close preview",
+      "printNow": "Print overview / Save as PDF",
       "summary": "Summary",
       "occupancy": "Occupancy",
       "occupancyHours": "Occupancy by hour",
@@ -1571,6 +1582,7 @@
     "upcomingTitle": "Upcoming shifts",
     "refreshing": "Refreshing shift information…",
     "noUpcoming": "You have no upcoming assigned shifts.",
+    "noUpcomingCurrentHelp": "To open or close an unplanned or active shift, use the Current shift page.",
     "askCoworker": "Ask a coworker to take this shift",
     "chooseCoworker": "Choose a team member",
     "askToTake": "Ask someone to take my shift",

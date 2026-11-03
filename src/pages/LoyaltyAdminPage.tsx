@@ -62,9 +62,16 @@ export function LoyaltyAdminPage() {
   const [loadError, setLoadError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [savingRate, setSavingRate] = useState(false);
+  const [savedRate, setSavedRate] = useState<number | null>(null);
+  const [rateRefreshError, setRateRefreshError] = useState(false);
   const [savingReward, setSavingReward] = useState(false);
   const [deletingReward, setDeletingReward] = useState<string | null>(null);
   const [savingAdjustment, setSavingAdjustment] = useState(false);
+  const [adjustmentResult, setAdjustmentResult] = useState<{
+    points: number;
+    balance: number;
+  } | null>(null);
+  const [adjustmentRefreshError, setAdjustmentRefreshError] = useState(false);
   const [busyRedemption, setBusyRedemption] = useState<string | null>(null);
   const [editingReward, setEditingReward] = useState<string | null>(null);
   const [stockInput, setStockInput] = useState("");
@@ -99,15 +106,17 @@ export function LoyaltyAdminPage() {
     defaultValues: { customerCode: "", points: 1, reason: "" },
   });
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<LoyaltyAdminData | null> => {
     setLoading(true);
     setLoadError(false);
     try {
       const result = await getLoyaltyAdminData();
       setData(result);
       resetRate({ rate: result.points_per_currency_unit });
+      return result;
     } catch {
       setLoadError(true);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -119,10 +128,14 @@ export function LoyaltyAdminPage() {
 
   const handleRateSave = handleRateSubmit(async ({ rate }) => {
     setActionError(false);
+    setSavedRate(null);
+    setRateRefreshError(false);
     setSavingRate(true);
     try {
       await setLoyaltyEarnRate(rate);
-      await refresh();
+      const refreshed = await refresh();
+      setSavedRate(refreshed?.points_per_currency_unit ?? rate);
+      setRateRefreshError(refreshed === null);
     } catch {
       setActionError(true);
     } finally {
@@ -193,11 +206,14 @@ export function LoyaltyAdminPage() {
 
   const handleAdjustment = handleAdjustmentSubmit(async (values) => {
     setActionError(false);
+    setAdjustmentResult(null);
+    setAdjustmentRefreshError(false);
     setSavingAdjustment(true);
     try {
-      await adjustCustomerLoyaltyPoints(values);
+      const balance = await adjustCustomerLoyaltyPoints(values);
+      setAdjustmentResult({ points: values.points, balance });
       resetAdjustment({ customerCode: "", points: 1, reason: "" });
-      await refresh();
+      if (!(await refresh())) setAdjustmentRefreshError(true);
     } catch {
       setActionError(true);
     } finally {
@@ -284,6 +300,18 @@ export function LoyaltyAdminPage() {
             {savingRate ? <LoaderCircle aria-hidden="true" className="animate-spin" size={17} /> : <Save aria-hidden="true" size={17} />}
             {t("loyaltyAdmin.save")}
           </button>
+          {savedRate !== null && (
+            <p className="w-full text-sm text-emerald-700 dark:text-emerald-300" role="status">
+              {t("loyaltyAdmin.earnRate.saved", {
+                rate: savedRate.toLocaleString(isArabic ? "ar" : "en"),
+              })}
+            </p>
+          )}
+          {rateRefreshError && (
+            <p className="w-full text-sm text-amber-700 dark:text-amber-300" role="status">
+              {t("loyaltyAdmin.earnRate.refreshError")}
+            </p>
+          )}
         </form>
       </section>
 
@@ -414,6 +442,21 @@ export function LoyaltyAdminPage() {
                 {savingAdjustment ? <LoaderCircle aria-hidden="true" className="animate-spin" size={17} /> : <Plus aria-hidden="true" size={17} />}
                 {t("loyaltyAdmin.adjustment.submit")}
               </button>
+              {adjustmentResult && (
+                <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">
+                  {t("loyaltyAdmin.adjustment.success", {
+                    points: adjustmentResult.points > 0
+                      ? `+${adjustmentResult.points.toLocaleString(isArabic ? "ar" : "en")}`
+                      : adjustmentResult.points.toLocaleString(isArabic ? "ar" : "en"),
+                    balance: adjustmentResult.balance.toLocaleString(isArabic ? "ar" : "en"),
+                  })}
+                </p>
+              )}
+              {adjustmentRefreshError && (
+                <p className="text-sm text-amber-700 dark:text-amber-300" role="status">
+                  {t("loyaltyAdmin.adjustment.refreshError")}
+                </p>
+              )}
             </form>
           </section>
 

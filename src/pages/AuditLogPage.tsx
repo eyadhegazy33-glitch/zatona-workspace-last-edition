@@ -156,6 +156,7 @@ export function AuditLogPage() {
   const [timeZone, setTimeZone] = useState("Africa/Cairo");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportedCount, setExportedCount] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<AuditLogRow | null>(null);
   const requestId = useRef(0);
@@ -268,6 +269,7 @@ export function AuditLogPage() {
 
   const exportCsv = async () => {
     setExporting(true);
+    setExportedCount(null);
     setError("");
     try {
       const currentFilters: AuditFilters = {
@@ -316,7 +318,8 @@ export function AuditLogPage() {
       link.href = url;
       link.download = "audit-log.csv";
       link.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportedCount(exportRows.length);
     } catch {
       setError(t("auditLog.errors.export"));
     } finally {
@@ -385,12 +388,17 @@ export function AuditLogPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t("auditLog.description")}</p>
         </div>
         {canExport && tab === "activity" && (
-          <button className={buttonClass} disabled={exporting || loading} onClick={() => void exportCsv()}>
+          <button aria-label={t("auditLog.export")} className={buttonClass} disabled={exporting || loading} onClick={() => void exportCsv()} type="button">
             <Download className="h-4 w-4" aria-hidden="true" />
             {exporting ? t("auditLog.exporting") : t("auditLog.export")}
           </button>
         )}
       </header>
+      {exportedCount !== null && (
+        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">
+          {t("auditLog.exported", { count: exportedCount })}
+        </p>
+      )}
 
       <nav className="mb-4 flex flex-wrap gap-2" aria-label={t("auditLog.tabs.label")}>
         {(["activity", "suspicious", "scans"] as const).map((value) => (

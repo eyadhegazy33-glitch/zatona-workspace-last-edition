@@ -293,13 +293,17 @@ export async function adjustCustomerLoyaltyPoints(input: {
   customerCode: string;
   points: number;
   reason: string;
-}): Promise<void> {
-  const { error } = await getSupabaseClient().rpc("adjust_customer_loyalty_points", {
+}): Promise<number> {
+  const { data, error } = await getSupabaseClient().rpc("adjust_customer_loyalty_points", {
     p_customer_code: input.customerCode,
     p_points: input.points,
     p_reason: input.reason,
   });
   if (error) throw error;
+  if (typeof data !== "number" || !Number.isSafeInteger(data) || data < 0) {
+    throw new Error("Loyalty adjustment response was invalid.");
+  }
+  return data;
 }
 
 export async function resolveLoyaltyRedemption(input: {

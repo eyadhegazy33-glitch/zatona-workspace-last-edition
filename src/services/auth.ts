@@ -1,4 +1,5 @@
 import type { AuthError, Session, User } from "@supabase/supabase-js";
+import { PASSWORD_RESET_REDIRECT_URL } from "../lib/authRedirects";
 import { getSupabaseClient } from "../lib/supabase";
 
 export type SignUpInput = {
@@ -204,7 +205,7 @@ export async function sendPasswordReset(
 ): Promise<void> {
   try {
     const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: PASSWORD_RESET_REDIRECT_URL,
     });
 
     if (error) {

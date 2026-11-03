@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "../lib/supabase";
+import { PASSWORD_RESET_REDIRECT_URL } from "../lib/authRedirects";
 import type { Database } from "../lib/database.types";
 import type { RegistrableRole } from "./roles";
 
@@ -120,7 +121,7 @@ export async function sendEmployeePasswordReset(
   email: string,
 ): Promise<void> {
   const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: PASSWORD_RESET_REDIRECT_URL,
   });
   if (error) {
     throw error;

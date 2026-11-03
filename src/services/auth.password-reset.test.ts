@@ -11,27 +11,35 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 import { AuthServiceError, sendPasswordReset } from "./auth";
+import { sendEmployeePasswordReset } from "./employees";
 
 describe("password recovery", () => {
   beforeEach(() => {
     resetPasswordForEmail.mockReset().mockResolvedValue({ error: null });
-    vi.stubGlobal("window", {
-      location: { origin: "https://zatona-workspace-last-edition.pages.dev" },
-    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("requests a recovery email with the app's reset-password callback", async () => {
+  it("requests a recovery email with the canonical Cloudflare callback", async () => {
     await sendPasswordReset("staff@example.test");
 
     expect(resetPasswordForEmail).toHaveBeenCalledWith(
       "staff@example.test",
       {
-        redirectTo:
-          "https://zatona-workspace-last-edition.pages.dev/reset-password",
+        redirectTo: "https://zatona-workspace-last-edition.pages.dev/reset-password",
+      },
+    );
+  });
+
+  it("uses the same callback for employee-initiated password resets", async () => {
+    await sendEmployeePasswordReset("staff@example.test");
+
+    expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      "staff@example.test",
+      {
+        redirectTo: "https://zatona-workspace-last-edition.pages.dev/reset-password",
       },
     );
   });
