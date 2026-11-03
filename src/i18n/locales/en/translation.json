@@ -212,6 +212,10 @@
       "employee": "Employee",
       "result": "Result",
       "allResults": "All results",
+      "from": "Start date",
+      "to": "End date",
+      "invalidRange": "The end date must be on or after the start date.",
+      "exported": "Downloaded {{count}} filtered scan records as CSV.",
       "customer": "Customer",
       "knownCustomer": "Known customer",
       "results": {

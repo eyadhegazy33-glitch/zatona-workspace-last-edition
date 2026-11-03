@@ -1313,6 +1313,8 @@ export type Database = {
       list_audit_scans: {
         Args: {
           p_result?: string | null;
+          p_from?: string | null;
+          p_to?: string | null;
           p_limit?: number;
           p_offset?: number;
         };

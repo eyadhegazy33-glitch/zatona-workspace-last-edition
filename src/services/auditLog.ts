@@ -78,11 +78,15 @@ export async function listAuditLogs(
 
 export async function listAuditScans(
   result: string | null,
+  from: string | null,
+  to: string | null,
   limit: number,
   offset: number,
 ) {
   const { data, error } = await getSupabaseClient().rpc("list_audit_scans", {
     p_result: result,
+    p_from: from,
+    p_to: to,
     p_limit: limit,
     p_offset: offset,
   });

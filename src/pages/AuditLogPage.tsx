@@ -147,6 +147,8 @@ export function AuditLogPage() {
   const [actions, setActions] = useState<string[]>([]);
   const [users, setUsers] = useState<AuditUser[]>([]);
   const [resultFilter, setResultFilter] = useState("");
+  const [scanFromDate, setScanFromDate] = useState("");
+  const [scanToDate, setScanToDate] = useState("");
   const [days, setDays] = useState(7);
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<AuditLogRow[]>([]);
@@ -157,6 +159,7 @@ export function AuditLogPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportedCount, setExportedCount] = useState<number | null>(null);
+  const [exportedTab, setExportedTab] = useState<Tab>("activity");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<AuditLogRow | null>(null);
   const requestId = useRef(0);
@@ -222,8 +225,20 @@ export function AuditLogPage() {
         setRows(result.rows);
         setTotal(result.total_count);
       } else if (tab === "scans") {
+        if (scanFromDate && scanToDate && scanFromDate > scanToDate) {
+          setError(t("auditLog.scans.invalidRange"));
+          setScans([]);
+          setTotal(0);
+          return;
+        }
         const result = await listAuditScans(
           resultFilter || null,
+          scanFromDate
+            ? startOfDateInTimeZone(scanFromDate, timeZone).toISOString()
+            : null,
+          scanToDate
+            ? startOfDateInTimeZone(addCalendarDays(scanToDate, 1), timeZone).toISOString()
+            : null,
           PAGE_SIZE,
           page * PAGE_SIZE,
         );
@@ -246,7 +261,7 @@ export function AuditLogPage() {
     } finally {
       if (requestId.current === currentRequest) setLoading(false);
     }
-  }, [days, filters, page, resultFilter, t, tab]);
+  }, [days, filters, page, resultFilter, scanFromDate, scanToDate, t, tab, timeZone]);
 
   useEffect(() => {
     void loadData();
@@ -272,6 +287,57 @@ export function AuditLogPage() {
     setExportedCount(null);
     setError("");
     try {
+      if (tab === "scans") {
+        if (scanFromDate && scanToDate && scanFromDate > scanToDate) {
+          setError(t("auditLog.scans.invalidRange"));
+          return;
+        }
+        const from = scanFromDate
+          ? startOfDateInTimeZone(scanFromDate, timeZone).toISOString()
+          : null;
+        const to = scanToDate
+          ? startOfDateInTimeZone(addCalendarDays(scanToDate, 1), timeZone).toISOString()
+          : null;
+        const exportRows: AuditScanRow[] = [];
+        for (let offset = 0; offset < 5000; offset += PAGE_SIZE) {
+          const result = await listAuditScans(
+            resultFilter || null,
+            from,
+            to,
+            PAGE_SIZE,
+            offset,
+          );
+          exportRows.push(...result.rows);
+          if (exportRows.length >= result.total_count || result.rows.length < PAGE_SIZE) {
+            break;
+          }
+        }
+        const headers = [
+          "created_at", "employee_name", "result", "customer_known", "customer_name",
+        ];
+        const csv = [
+          headers.join(","),
+          ...exportRows.map((row) => [
+            row.created_at,
+            safeText(row.employee_name, "employee_name"),
+            row.result,
+            row.customer_known,
+            safeText(row.customer_name, "customer_name"),
+          ].map(csvCell).join(",")),
+        ].join("\r\n");
+        const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {
+          type: "text/csv;charset=utf-8",
+        }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "audit-scans.csv";
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setExportedCount(exportRows.length);
+        setExportedTab("scans");
+        return;
+      }
+
       const currentFilters: AuditFilters = {
         ...filters,
         userId: userFilter || null,
@@ -320,6 +386,7 @@ export function AuditLogPage() {
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setExportedCount(exportRows.length);
+      setExportedTab("activity");
     } catch {
       setError(t("auditLog.errors.export"));
     } finally {
@@ -387,8 +454,8 @@ export function AuditLogPage() {
           <h1 className="text-2xl font-bold text-ink dark:text-white">{t("auditLog.title")}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t("auditLog.description")}</p>
         </div>
-        {canExport && tab === "activity" && (
-          <button aria-label={t("auditLog.export")} className={buttonClass} disabled={exporting || loading} onClick={() => void exportCsv()} type="button">
+        {canExport && (tab === "activity" || tab === "scans") && (
+          <button aria-label={t("auditLog.export")} className={buttonClass} disabled={exporting || loading || (tab === "scans" && Boolean(scanFromDate && scanToDate && scanFromDate > scanToDate))} onClick={() => void exportCsv()} type="button">
             <Download className="h-4 w-4" aria-hidden="true" />
             {exporting ? t("auditLog.exporting") : t("auditLog.export")}
           </button>
@@ -396,7 +463,9 @@ export function AuditLogPage() {
       </header>
       {exportedCount !== null && (
         <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">
-          {t("auditLog.exported", { count: exportedCount })}
+          {exportedTab === "scans"
+            ? t("auditLog.scans.exported", { count: exportedCount })
+            : t("auditLog.exported", { count: exportedCount })}
         </p>
       )}
 
@@ -452,7 +521,7 @@ export function AuditLogPage() {
       )}
 
       {tab === "scans" && (
-        <div className="mb-4 max-w-xs">
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 xl:grid-cols-3">
           <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
             {t("auditLog.scans.result")}
             <select className={`${inputClass} mt-1`} value={resultFilter} onChange={(event) => { setResultFilter(event.target.value); setPage(0); }}>
@@ -460,6 +529,37 @@ export function AuditLogPage() {
               {(["ok", "blocked", "expired", "unknown"] as const).map((result) => <option key={result} value={result}>{t(`auditLog.scans.results.${result}`)}</option>)}
             </select>
           </label>
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {t("auditLog.scans.from")}
+            <input
+              className={`${inputClass} mt-1`}
+              max={scanToDate || undefined}
+              type="date"
+              value={scanFromDate}
+              onChange={(event) => {
+                setScanFromDate(event.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {t("auditLog.scans.to")}
+            <input
+              className={`${inputClass} mt-1`}
+              min={scanFromDate || undefined}
+              type="date"
+              value={scanToDate}
+              onChange={(event) => {
+                setScanToDate(event.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          {scanFromDate && scanToDate && scanFromDate > scanToDate && (
+            <p className="text-sm text-red-700 dark:text-red-300 sm:col-span-2 xl:col-span-3" role="alert">
+              {t("auditLog.scans.invalidRange")}
+            </p>
+          )}
         </div>
       )}
 
