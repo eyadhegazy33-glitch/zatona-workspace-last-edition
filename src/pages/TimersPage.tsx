@@ -338,13 +338,18 @@ export function TimersPage() {
                     </button>
                   )}
                   {canOpenCustomer && (
-                    <Link
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100"
-                      to={`/customers/${timer.customer_id}`}
-                    >
-                      <ArrowUpRight aria-hidden="true" size={16} />
-                      {t("timers.actions.openCustomer")}
-                    </Link>
+                    <details className="relative">
+                      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100">
+                        {t("timers.actions.more")}
+                      </summary>
+                      <Link
+                        className="absolute end-0 top-full z-10 mt-2 inline-flex min-h-11 min-w-48 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        to={`/customers/${timer.customer_id}`}
+                      >
+                        <ArrowUpRight aria-hidden="true" size={16} />
+                        {t("timers.actions.openCustomer")}
+                      </Link>
+                    </details>
                   )}
                 </div>
               </div>

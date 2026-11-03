@@ -3,6 +3,7 @@ import { getSupabaseClient } from "../lib/supabase";
 
 export type ReceiptMethod = "cash" | "card" | "wallet" | "other";
 export type ReceiptStatus = "paid" | "voided";
+export type ReceiptSource = "commerce" | "pos";
 export type ReceiptSort = "created_at" | "number" | "customer" | "employee" | "total" | "status";
 
 export type ReceiptFilters = {
@@ -19,13 +20,14 @@ export type ReceiptFilters = {
 
 export type ReceiptListItem = {
   id: string;
+  source: ReceiptSource;
   number: number;
   display_number: string;
   created_at: string;
   total: number;
   method: ReceiptMethod;
   status: ReceiptStatus;
-  customer_id: string;
+  customer_id: string | null;
   customer_name: string;
   customer_code: string;
   created_by: string | null;
@@ -111,6 +113,12 @@ function readStatus(value: Json | undefined): ReceiptStatus {
   throw new Error("Receipt status was invalid.");
 }
 
+function readSource(value: Json | undefined): ReceiptSource {
+  if (value === undefined) return "commerce";
+  if (value === "commerce" || value === "pos") return value;
+  throw new Error("Receipt source was invalid.");
+}
+
 function readLineType(value: Json | undefined): "order" | "fee" {
   if (value === "order" || value === "fee") return value;
   throw new Error("Receipt line type was invalid.");
@@ -120,13 +128,14 @@ function parseReceipt(value: Json): ReceiptListItem {
   if (!isRecord(value)) throw new Error("Receipt list item was invalid.");
   return {
     id: readString(value.id, "id"),
+    source: readSource(value.source),
     number: readNumber(value.number, "number"),
     display_number: readString(value.display_number, "display_number"),
     created_at: readString(value.created_at, "created_at"),
     total: readNumber(value.total, "total"),
     method: readMethod(value.method),
     status: readStatus(value.status),
-    customer_id: readString(value.customer_id, "customer_id"),
+    customer_id: readNullableString(value.customer_id, "customer_id"),
     customer_name: readString(value.customer_name, "customer_name"),
     customer_code: readString(value.customer_code, "customer_code"),
     created_by: readNullableString(value.created_by, "created_by"),
@@ -216,10 +225,17 @@ export async function getReceiptDetail(receiptId: string): Promise<ReceiptDetail
   };
 }
 
-export async function voidReceipt(receiptId: string, reason: string): Promise<void> {
-  const { error } = await getSupabaseClient().rpc("void_receipt", {
-    p_receipt: receiptId,
-    p_reason: reason.trim(),
-  });
+export async function voidReceipt(
+  receiptId: string,
+  reason: string,
+  source: ReceiptSource = "commerce",
+): Promise<void> {
+  const { error } = await getSupabaseClient().rpc(
+    source === "pos" ? "void_pos_receipt" : "void_receipt",
+    {
+      p_receipt: receiptId,
+      p_reason: reason.trim(),
+    },
+  );
   if (error) throw error;
 }

@@ -196,16 +196,6 @@ export const router = createBrowserRouter([
             }],
           },
           {
-            element: <PermissionRoute permission="shifts.manage" />,
-            children: [{
-              path: "/shifts",
-              lazy: async () => {
-                const { ShiftsPage } = await import("../pages/ShiftsPage");
-                return { Component: ShiftsPage };
-              },
-            }],
-          },
-          {
             element: <PermissionRoute permission="shifts.use" />,
             children: [
               {

@@ -245,7 +245,7 @@ export function NewOrderPage() {
         try {
           await scanner.start(
             constraint,
-            { fps: 10, qrbox: { width: 240, height: 180 } },
+           { fps: 10, qrbox: { width: 240, height: 180 } },
             (decodedText) => {
               if (!cancelled) {
                 setScanValue(decodedText);

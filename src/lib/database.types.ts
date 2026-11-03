@@ -1864,6 +1864,27 @@ export type Database = {
         Args: { p_session: string };
         Returns: Json;
       };
+      get_my_shift: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      get_team_shifts: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          id: string;
+          user_name: string;
+          opened_at: string;
+          closed_at: string | null;
+          opening_cash: number;
+          cash_expected: number | null;
+          cash_counted: number | null;
+          difference: number | null;
+          orders_count: number;
+          unpaid_orders: number;
+          receipts_total: number;
+          note: string | null;
+        }[];
+      };
       last_handover_note: {
         Args: Record<string, never>;
         Returns: string | null;
@@ -2088,6 +2109,25 @@ export type Database = {
           p_offset: number;
           p_limit: number;
         };
+        Returns: Json;
+      };
+      list_receipts: {
+        Args: {
+          p_from?: string | null;
+          p_to?: string | null;
+          p_search?: string | null;
+          p_method?: string | null;
+          p_status?: string | null;
+          p_employee?: string | null;
+          p_min?: number | null;
+          p_max?: number | null;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
+      };
+      get_receipt: {
+        Args: { p_id: string };
         Returns: Json;
       };
       get_receipt_browser_detail: {

@@ -9,7 +9,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ReceiptPrint } from "../components/ReceiptPrint";
 import { useAuth } from "../hooks/useAuth";
@@ -84,8 +84,11 @@ export function ReceiptsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [detail, setDetail] = useState<ReceiptDetail | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(false);
+  const listRequest = useRef(0);
+  const detailRequest = useRef(0);
   const [printLayout, setPrintLayout] = useState<"thermal" | "a4">("thermal");
   const [receiptSettings, setReceiptSettings] = useState<Awaited<ReturnType<typeof getReceiptDisplaySettings>> | null>(null);
   const [voidTarget, setVoidTarget] = useState<ReceiptListItem | null>(null);
@@ -98,10 +101,12 @@ export function ReceiptsPage() {
   const [exportResultCount, setExportResultCount] = useState<number | null>(null);
 
   const loadReceipts = useCallback(async () => {
+    const requestId = ++listRequest.current;
     setLoading(true);
     setError(false);
     try {
       const settings = await getReceiptDisplaySettings();
+      if (requestId !== listRequest.current) return;
       const boundaries = dateBoundaries(preset, settings.timeZone);
       const activeFilters = preset === "all" || preset === "custom"
         ? filters
@@ -112,19 +117,28 @@ export function ReceiptsPage() {
           : { ...current, ...boundaries });
       }
       const result = await listReceipts(activeFilters, page * PAGE_SIZE, PAGE_SIZE);
+      if (requestId !== listRequest.current) return;
       setData(result);
       setReceiptSettings(settings);
     } catch {
-      setError(true);
+      if (requestId === listRequest.current) setError(true);
     } finally {
-      setLoading(false);
+      if (requestId === listRequest.current) setLoading(false);
     }
   }, [filters, page, preset]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadReceipts(), 250);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      listRequest.current += 1;
+    };
   }, [loadReceipts]);
+
+  useEffect(() => () => {
+    listRequest.current += 1;
+    detailRequest.current += 1;
+  }, []);
 
   const formatMoney = useCallback((amount: number) => {
     const currency = receiptSettings?.currencyCode ?? "EGP";
@@ -159,16 +173,27 @@ export function ReceiptsPage() {
   };
 
   const openDetail = async (receiptId: string) => {
+    const requestId = ++detailRequest.current;
+    setDetailOpen(true);
     setDetail(null);
     setDetailError(false);
     setDetailLoading(true);
     try {
-      setDetail(await getReceiptDetail(receiptId));
+      const result = await getReceiptDetail(receiptId);
+      if (requestId === detailRequest.current) setDetail(result);
     } catch {
-      setDetailError(true);
+      if (requestId === detailRequest.current) setDetailError(true);
     } finally {
-      setDetailLoading(false);
+      if (requestId === detailRequest.current) setDetailLoading(false);
     }
+  };
+
+  const closeDetail = () => {
+    detailRequest.current += 1;
+    setDetailOpen(false);
+    setDetail(null);
+    setDetailLoading(false);
+    setDetailError(false);
   };
 
   const printReceipt = () => {
@@ -198,7 +223,7 @@ export function ReceiptsPage() {
     setVoidBusy(true);
     setVoidError("");
     try {
-      await voidReceipt(voidTarget.id, parsed.data.reason);
+      await voidReceipt(voidTarget.id, parsed.data.reason, voidTarget.source);
       setVoidTarget(null);
       setVoidReason("");
       await loadReceipts();
@@ -226,11 +251,18 @@ export function ReceiptsPage() {
               receiptSettings?.timeZone ?? "Africa/Cairo",
             ),
           };
-      const result = await listReceipts(exportFilters, 0, 5000);
-      if (result.total_count === 0) {
+      const firstPage = await listReceipts(exportFilters, 0, 5000);
+      if (firstPage.total_count === 0) {
         setExportResultCount(0);
         return;
       }
+      const receipts = [...firstPage.rows];
+      for (let offset = receipts.length; offset < firstPage.total_count; offset += 5000) {
+        const nextPage = await listReceipts(exportFilters, offset, 5000);
+        if (nextPage.rows.length === 0) break;
+        receipts.push(...nextPage.rows);
+      }
+      setExportTruncated(receipts.length < firstPage.total_count);
       const headers = [
         t("receiptsBrowser.number"),
         t("receiptsBrowser.date"),
@@ -240,7 +272,7 @@ export function ReceiptsPage() {
         t("receiptsBrowser.total"),
         t("receiptsBrowser.status"),
       ];
-      const rows = result.rows.map((receipt) => [
+      const rows = receipts.map((receipt) => [
         receipt.display_number,
         dateFormatter.format(new Date(receipt.created_at)),
         `${receipt.customer_name} (${receipt.customer_code})`,
@@ -250,8 +282,7 @@ export function ReceiptsPage() {
         t(`receiptsBrowser.statuses.${receipt.status}`),
       ]);
       writeReceiptExport(headers, rows);
-      setExportTruncated(result.total_count > result.rows.length);
-      setExportResultCount(result.rows.length);
+      setExportResultCount(receipts.length);
     } catch {
       setExportError(true);
     } finally {
@@ -270,10 +301,18 @@ export function ReceiptsPage() {
 
   const totalPages = Math.max(1, Math.ceil((data?.total_count ?? 0) / PAGE_SIZE));
   const displayedRows = data?.rows ?? [];
+  const receiptLineLabel = (line: NonNullable<typeof detail>["lines"][number]) => {
+    if (detail?.source === "pos" && line.line_type === "fee") {
+      if (line.description === "visit_fee" || line.description === "timer_fee") {
+        return t(`customerCheckout.itemTypes.${line.description}`);
+      }
+    }
+    return line.description;
+  };
   const receiptDetailLines = detail?.lines.map((line) => ({
     kind: line.line_type,
     id: String(line.id),
-    label: line.description,
+    label: receiptLineLabel(line),
     amount: line.amount,
   })) ?? [];
 
@@ -309,7 +348,7 @@ export function ReceiptsPage() {
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="relative block sm:col-span-2">
             <span className="sr-only">{t("receiptsBrowser.search")}</span>
             <Search aria-hidden="true" className="absolute start-3 top-3 text-slate-400" size={18} />
@@ -332,57 +371,64 @@ export function ReceiptsPage() {
               ))}
             </select>
           </label>
-          <label className="block">
-            <span className="sr-only">{t("receiptsBrowser.method")}</span>
-            <select
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-              onChange={(event) => updateFilter("method", event.target.value ? event.target.value as ReceiptMethod : null)}
-              value={filters.method ?? ""}
-            >
-              <option value="">{t("receiptsBrowser.allMethods")}</option>
-              {(["cash", "card", "wallet", "other"] as const).map((method) => (
-                <option key={method} value={method}>{t(`receiptsBrowser.methods.${method}`)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="sr-only">{t("receiptsBrowser.status")}</span>
-            <select
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-              onChange={(event) => updateFilter("status", event.target.value ? event.target.value as ReceiptStatus : null)}
-              value={filters.status ?? ""}
-            >
-              <option value="">{t("receiptsBrowser.allStatuses")}</option>
-              {(["paid", "voided"] as const).map((status) => (
-                <option key={status} value={status}>{t(`receiptsBrowser.statuses.${status}`)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("receiptsBrowser.minAmount")}</span>
-            <input
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-              inputMode="decimal"
-              min="0"
-              onChange={(event) => updateFilter("minAmount", parseAmount(event.target.value))}
-              type="number"
-              value={filters.minAmount ?? ""}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("receiptsBrowser.maxAmount")}</span>
-            <input
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-              inputMode="decimal"
-              min="0"
-              onChange={(event) => updateFilter("maxAmount", parseAmount(event.target.value))}
-              type="number"
-              value={filters.maxAmount ?? ""}
-            />
-          </label>
         </div>
-        {preset === "custom" && (
-          <div className="grid gap-3 sm:grid-cols-2">
+        <details className="rounded-xl border border-slate-200 dark:border-slate-700">
+          <summary className="min-h-11 cursor-pointer px-3 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            {t("receiptsBrowser.moreFilters")}
+          </summary>
+          <div className="space-y-4 border-t border-slate-200 p-3 dark:border-slate-700">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block">
+                <span className="sr-only">{t("receiptsBrowser.method")}</span>
+                <select
+                  className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                  onChange={(event) => updateFilter("method", event.target.value ? event.target.value as ReceiptMethod : null)}
+                  value={filters.method ?? ""}
+                >
+                  <option value="">{t("receiptsBrowser.allMethods")}</option>
+                  {(["cash", "card", "wallet", "other"] as const).map((method) => (
+                    <option key={method} value={method}>{t(`receiptsBrowser.methods.${method}`)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="sr-only">{t("receiptsBrowser.status")}</span>
+                <select
+                  className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                  onChange={(event) => updateFilter("status", event.target.value ? event.target.value as ReceiptStatus : null)}
+                  value={filters.status ?? ""}
+                >
+                  <option value="">{t("receiptsBrowser.allStatuses")}</option>
+                  {(["paid", "voided"] as const).map((status) => (
+                    <option key={status} value={status}>{t(`receiptsBrowser.statuses.${status}`)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("receiptsBrowser.minAmount")}</span>
+                <input
+                  className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => updateFilter("minAmount", parseAmount(event.target.value))}
+                  type="number"
+                  value={filters.minAmount ?? ""}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("receiptsBrowser.maxAmount")}</span>
+                <input
+                  className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => updateFilter("maxAmount", parseAmount(event.target.value))}
+                  type="number"
+                  value={filters.maxAmount ?? ""}
+                />
+              </label>
+            </div>
+            {preset === "custom" && (
+              <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("receiptsBrowser.from")}</span>
               <input
@@ -419,8 +465,10 @@ export function ReceiptsPage() {
                 value={customTo}
               />
             </label>
+              </div>
+            )}
           </div>
-        )}
+        </details>
       </section>
 
       {error && (
@@ -447,7 +495,35 @@ export function ReceiptsPage() {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          <div className="grid min-h-24 place-items-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" role="status">
+            <LoaderCircle aria-label={t("receiptsBrowser.loading")} className="animate-spin text-brand" />
+          </div>
+        ) : displayedRows.length === 0 ? (
+          <p className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">{t("receiptsBrowser.empty")}</p>
+        ) : displayedRows.map((receipt) => (
+          <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" key={receipt.id}>
+            <button className="w-full text-start" onClick={() => void openDetail(receipt.id)} type="button">
+              <span className="flex items-start justify-between gap-3">
+                <span>
+                  <span className="block font-mono font-bold text-brand">{receipt.display_number}</span>
+                  <span className="mt-1 block font-semibold text-ink dark:text-white">{receipt.customer_name}</span>
+                  <span className="block text-xs text-slate-500">{receipt.customer_code}</span>
+                </span>
+                <span className="text-end font-bold text-ink dark:text-white">{formatMoney(receipt.total)}</span>
+              </span>
+              <span className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{t(`receiptsBrowser.methods.${receipt.method}`)}</span>
+                <span className={`rounded-full px-2.5 py-1 font-semibold ${receipt.status === "paid" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"}`}>{t(`receiptsBrowser.statuses.${receipt.status}`)}</span>
+                <span className="ms-auto text-slate-500">{dateFormatter.format(new Date(receipt.created_at))}</span>
+              </span>
+            </button>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block">
         <table className="w-full min-w-[850px] text-start text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-600 dark:bg-slate-950 dark:text-slate-300">
             <tr>
@@ -507,12 +583,12 @@ export function ReceiptsPage() {
         </div>
       </footer>
 
-      {(detail || detailLoading || detailError) && (
+      {detailOpen && (
         <div className="fixed inset-0 z-[110] flex justify-end bg-slate-950/50">
           <aside aria-label={t("receiptsBrowser.detailTitle")} aria-modal="true" className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-6" role="dialog">
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-2xl font-bold text-ink dark:text-white">{t("receiptsBrowser.detailTitle")}</h2>
-              <button aria-label={t("receiptsBrowser.close")} className="grid size-10 shrink-0 place-items-center rounded-lg border border-slate-300 dark:border-slate-700" onClick={() => setDetail(null)} type="button"><X size={18} /></button>
+              <button aria-label={t("receiptsBrowser.close")} className="grid size-10 shrink-0 place-items-center rounded-lg border border-slate-300 dark:border-slate-700" onClick={closeDetail} type="button"><X size={18} /></button>
             </div>
             {detailLoading ? <LoaderCircle className="mx-auto mt-10 animate-spin text-brand" /> : detailError || !detail ? (
               <p className="mt-5 text-red-700 dark:text-red-300" role="alert">{t("receiptsBrowser.errors.detail")}</p>
@@ -541,7 +617,7 @@ export function ReceiptsPage() {
                   <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-800">
                     {detail.lines.map((line) => (
                       <li className="flex justify-between gap-3 py-3 text-sm" key={line.id}>
-                        <span>{line.description}</span><strong className="whitespace-nowrap">{formatMoney(line.amount)}</strong>
+                        <span>{receiptLineLabel(line)}</span><strong className="whitespace-nowrap">{formatMoney(line.amount)}</strong>
                       </li>
                     ))}
                   </ul>

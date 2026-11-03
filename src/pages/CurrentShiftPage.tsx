@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Clock3, LoaderCircle, Printer } from "lucide-react";
+import { Clock3, LoaderCircle } from "lucide-react";
 import { z } from "zod";
 import { useAuth } from "../hooks/useAuth";
 import { getSupabaseClient } from "../lib/supabase";
 import {
   closeShiftSession,
   getBusinessDate,
-  getLastHandoverNote,
   getOpenShiftSession,
   getShiftScheduleData,
   getShiftSummary,
@@ -21,7 +19,6 @@ import {
   type UnpaidShiftOrder,
 } from "../services/shifts";
 import { getOperationalRulesSettings } from "../services/settings";
-import { useBranding } from "../hooks/useBranding";
 
 const cashSchema = z.coerce.number().finite().min(0).max(100_000_000);
 const closeSchema = z.object({
@@ -29,107 +26,7 @@ const closeSchema = z.object({
     const amount = Number(value);
     return Number.isFinite(amount) && amount >= 0 && amount <= 100_000_000;
   }).transform(Number),
-  note: z.string().trim().max(1000),
 });
-
-type PrintLayout = "thermal" | "a4";
-
-function ShiftSummaryPrint({
-  summary,
-  shiftName,
-  layout,
-  onLayoutChange,
-  currency,
-  dir,
-}: {
-  summary: ShiftSummary;
-  shiftName: string | null;
-  layout: PrintLayout;
-  onLayoutChange: (layout: PrintLayout) => void;
-  currency: string;
-  dir: string;
-}) {
-  const { t, i18n } = useTranslation();
-  const { settings } = useBranding();
-  const [printing, setPrinting] = useState(false);
-  const money = (value: number) => new Intl.NumberFormat(i18n.language, {
-    style: "currency",
-    currency,
-  }).format(value);
-  const opened = new Intl.DateTimeFormat(i18n.language, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(summary.opened_at));
-  const closed = summary.closed_at
-    ? new Intl.DateTimeFormat(i18n.language, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(summary.closed_at))
-    : "";
-  const difference = summary.cash_difference ?? 0;
-  const content = (
-    <article
-      className={`shift-summary-print shift-summary-print-${layout}`}
-      dir={dir}
-      lang={dir === "rtl" ? "ar" : "en"}
-    >
-      {settings.logoUrl && <img alt="" className="shift-summary-logo" src={settings.logoUrl} />}
-      <h1>{settings.workspaceName}</h1>
-      <h2>{t("shiftScreens.closedSummary")}</h2>
-      <p>{t("shiftScreens.shiftName")}: {shiftName ?? t("shiftScreens.unplannedShift")}</p>
-      <p>{t("shiftScreens.openedAt")}: {opened}</p>
-      <p>{t("shiftScreens.closedAt")}: {closed}</p>
-      <hr />
-      <p>{t("shiftScreens.ordersCount")}: {summary.orders_count}</p>
-      <p>{t("shiftScreens.unpaidOrders")}: {summary.unpaid_orders}</p>
-      <p>{t("shiftScreens.expectedCash")}: {money(summary.cash_expected)}</p>
-      <p>{t("shiftScreens.countedCash")}: {money(summary.cash_counted ?? 0)}</p>
-      <p className="shift-summary-difference">{t("shiftScreens.difference")}: {money(difference)}</p>
-      <hr />
-      {Object.entries(summary.receipts_by_method).map(([method, total]) => (
-        <p key={method}>{t(`shiftScreens.methods.${method}`, { defaultValue: method })}: {money(total)}</p>
-      ))}
-    </article>
-  );
-  const print = () => {
-    document.body.classList.add("printing-shift-summary", `shift-summary-layout-${layout}`);
-    setPrinting(true);
-    window.setTimeout(() => window.print(), 50);
-  };
-  useEffect(() => {
-    const cleanup = () => {
-      document.body.classList.remove("printing-shift-summary", "shift-summary-layout-thermal", "shift-summary-layout-a4");
-      setPrinting(false);
-    };
-    window.addEventListener("afterprint", cleanup);
-    return () => window.removeEventListener("afterprint", cleanup);
-  }, []);
-
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-sm">
-          <span className="sr-only">{t("shiftScreens.printLayout")}</span>
-          <select
-            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-            onChange={(event) => {
-              const next = event.target.value === "a4" ? "a4" : "thermal";
-              onLayoutChange(next);
-            }}
-            value={layout}
-          >
-            <option value="thermal">{t("shiftScreens.thermal")}</option>
-            <option value="a4">{t("shiftScreens.a4")}</option>
-          </select>
-        </label>
-        <button className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand px-3 text-sm font-semibold text-white" disabled={printing} onClick={print} type="button">
-          <Printer size={16} />{t("shiftScreens.printSummary")}
-        </button>
-      </div>
-      {createPortal(content, document.body)}
-    </>
-  );
-}
 
 export function CurrentShiftPage() {
   const { i18n, t } = useTranslation();
@@ -138,13 +35,10 @@ export function CurrentShiftPage() {
   const [session, setSession] = useState<ShiftSession | null>(null);
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
   const [closedSummary, setClosedSummary] = useState<ShiftSummary | null>(null);
-  const [closedShiftName, setClosedShiftName] = useState<string | null>(null);
   const [assignedShifts, setAssignedShifts] = useState<ScheduledShift[]>([]);
   const [selectedShift, setSelectedShift] = useState("");
   const [openingCash, setOpeningCash] = useState("");
   const [countedCash, setCountedCash] = useState("");
-  const [handoverNote, setHandoverNote] = useState("");
-  const [lastNote, setLastNote] = useState<string | null>(null);
   const [currency, setCurrency] = useState("EGP");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -153,7 +47,6 @@ export function CurrentShiftPage() {
   const [unpaidOrders, setUnpaidOrders] = useState<UnpaidShiftOrder[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [printLayout, setPrintLayout] = useState<PrintLayout>("thermal");
 
   const refreshSummary = useCallback(async (sessionId: string) => {
     try {
@@ -172,13 +65,11 @@ export function CurrentShiftPage() {
       const rules = await getOperationalRulesSettings();
       const today = getBusinessDate(rules.timeZone);
       setCurrency(rules.currencyCode);
-      const [current, schedule, note] = await Promise.all([
+      const [current, schedule] = await Promise.all([
         getOpenShiftSession(profile.id),
         getShiftScheduleData(today, today),
-        getLastHandoverNote(),
       ]);
       setSession(current);
-      setLastNote(note);
       const assigned = schedule.shifts.filter((shift) =>
         shift.active && schedule.assignments.some((assignment) =>
           assignment.user_id === profile.id && assignment.shift_id === shift.id,
@@ -262,7 +153,7 @@ export function CurrentShiftPage() {
 
   const close = async (confirmUnpaid: boolean) => {
     if (!session) return;
-    const parsed = closeSchema.safeParse({ countedCash, note: handoverNote });
+    const parsed = closeSchema.safeParse({ countedCash });
     if (!parsed.success || busy) {
       setError("shiftScreens.invalidClose");
       return;
@@ -273,17 +164,15 @@ export function CurrentShiftPage() {
       const closed = await closeShiftSession({
         sessionId: session.id,
         countedCash: parsed.data.countedCash,
-        note: parsed.data.note,
+        note: "",
         confirmUnpaid,
       });
-      setClosedShiftName(session.shift_name);
       setClosedSummary(closed);
       setSummary(null);
       setSession(null);
       setShowCloseDialog(false);
       setUnpaidCount(null);
       setUnpaidOrders([]);
-      setHandoverNote("");
       setNotice(t("shiftScreens.shiftClosed"));
       window.dispatchEvent(new Event("shift-session-changed"));
     } catch (cause) {
@@ -333,7 +222,6 @@ export function CurrentShiftPage() {
       {!session && !closedSummary && (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-ink dark:text-white">{t("shiftScreens.openShiftTitle")}</h2>
-          {lastNote && <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"><p className="font-semibold">{t("shiftScreens.lastHandoverNote")}</p><p className="mt-1 whitespace-pre-wrap">{lastNote}</p></div>}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium"><span className="mb-1 block">{t("shiftScreens.plannedShift")}</span>
               <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setSelectedShift(event.target.value)} value={selectedShift}>
@@ -357,7 +245,6 @@ export function CurrentShiftPage() {
             <SummaryStat label={t("shiftScreens.ordersCount")} value={String(summary.orders_count)} />
             <SummaryStat label={t("shiftScreens.unpaidOrders")} value={String(summary.unpaid_orders)} />
             <SummaryStat label={t("shiftScreens.expectedCash")} value={money(summary.cash_expected)} />
-            {Object.entries(summary.receipts_by_method).map(([method, total]) => <SummaryStat key={method} label={t(`shiftScreens.methods.${method}`, { defaultValue: method })} value={money(total)} />)}
           </div>
           <button className="min-h-11 rounded-xl bg-brand px-5 font-semibold text-white" onClick={() => setShowCloseDialog(true)} type="button">{t("shiftScreens.closeShift")}</button>
         </section>
@@ -372,7 +259,6 @@ export function CurrentShiftPage() {
             <SummaryStat label={t("shiftScreens.difference")} value={money(closedSummary.cash_difference ?? 0)} valueClass={(closedSummary.cash_difference ?? 0) < 0 ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"} />
             <SummaryStat label={t("shiftScreens.ordersCount")} value={String(closedSummary.orders_count)} />
           </div>
-          <ShiftSummaryPrint summary={closedSummary} shiftName={closedShiftName} layout={printLayout} onLayoutChange={setPrintLayout} currency={currency} dir={i18n.dir()} />
           <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-semibold dark:border-slate-700" onClick={() => { setClosedSummary(null); setNotice(""); }} type="button">{t("shiftScreens.openAnotherShift")}</button>
         </section>
       )}
@@ -383,7 +269,6 @@ export function CurrentShiftPage() {
             <h2 className="text-xl font-bold text-ink dark:text-white" id="close-shift-title">{t("shiftScreens.closeShiftTitle")}</h2>
             {unpaidCount !== null && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"><p>{t("shiftScreens.unpaidWarning", { count: unpaidCount })}</p><ul className="mt-2 list-inside list-disc">{unpaidOrders.map((order) => <li key={order.order_id}>{t("shiftScreens.orderNumber", { number: order.order_number })} · {money(order.total)}</li>)}</ul></div>}
             <label className="block text-sm font-medium"><span className="mb-1 block">{t("shiftScreens.countedCash")}</span><input autoFocus className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" min="0" onChange={(event) => setCountedCash(event.target.value)} step="0.01" type="number" value={countedCash} /></label>
-            <label className="block text-sm font-medium"><span className="mb-1 block">{t("shiftScreens.handoverNote")}</span><textarea className="min-h-24 w-full rounded-xl border border-slate-300 bg-white p-3 dark:border-slate-700 dark:bg-slate-950" maxLength={1000} onChange={(event) => setHandoverNote(event.target.value)} value={handoverNote} /></label>
             <div className="flex flex-wrap justify-end gap-2">
               <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-semibold dark:border-slate-700" disabled={busy} onClick={() => setShowCloseDialog(false)} type="button">{t("shiftScreens.cancel")}</button>
               {unpaidCount !== null ? <>

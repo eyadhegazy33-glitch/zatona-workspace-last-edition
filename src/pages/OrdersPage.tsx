@@ -161,12 +161,19 @@ export function OrdersPage() {
               {t("layout.navigation.newOrder")}
             </Link>
           )}
-          <Link className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" to="/orders/board">
-            {t("layout.navigation.ordersBoard")}
-          </Link>
-          <Link className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" to="/pos">
-            {t("layout.navigation.pos")}
-          </Link>
+          <details className="relative">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+              {t("ordersList.moreTools")}
+            </summary>
+            <div className="absolute end-0 top-full z-20 mt-2 grid min-w-48 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+              <Link className="rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800" to="/orders/board">
+                {t("layout.navigation.ordersBoard")}
+              </Link>
+              <Link className="rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800" to="/pos">
+                {t("layout.navigation.pos")}
+              </Link>
+            </div>
+          </details>
           <button
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             onClick={() => {

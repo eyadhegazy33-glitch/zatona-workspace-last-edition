@@ -150,12 +150,6 @@ const navigationItems: NavigationItem[] = [
     icon: ShoppingBasket,
   },
   {
-    labelKey: "layout.navigation.shifts",
-    path: "/shifts",
-    permission: "shifts.manage",
-    icon: CalendarDays,
-  },
-  {
     labelKey: "layout.navigation.myShifts",
     path: "/shifts/my",
     permission: "shifts.use",

@@ -479,7 +479,7 @@ export function ScanPage() {
           try {
             const startPromise = scanner.start(
               constraint,
-              { fps: 12, qrbox: { width: 260, height: 260 } },
+              { fps: 30, qrbox: { width: 600, height: 600 } },
               async (decodedText) => {
                 await handleScanValueRef.current(decodedText);
               },
