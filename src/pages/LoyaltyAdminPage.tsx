@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useAuth } from "../hooks/useAuth";
 import {
   adjustCustomerLoyaltyPoints,
   deleteLoyaltyReward,
@@ -57,6 +58,11 @@ const emptyReward: RewardValues = {
 
 export function LoyaltyAdminPage() {
   const { i18n, t } = useTranslation();
+  const { permissions } = useAuth();
+  const canManageLoyalty = permissions.includes("loyalty.manage");
+  const canFulfillRedemptions =
+    canManageLoyalty ||
+    permissions.includes("loyalty.redemptions.fulfill");
   const [data, setData] = useState<LoyaltyAdminData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -287,6 +293,7 @@ export function LoyaltyAdminPage() {
         </p>
       )}
 
+      {canManageLoyalty && (
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-lg font-bold text-ink dark:text-white">{t("loyaltyAdmin.earnRate.title")}</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t("loyaltyAdmin.earnRate.help")}</p>
@@ -314,8 +321,10 @@ export function LoyaltyAdminPage() {
           )}
         </form>
       </section>
+      )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      <div className={`mt-6 grid gap-6 ${canManageLoyalty ? "lg:grid-cols-[1fr_1.2fr]" : "grid-cols-1"}`}>
+        {canManageLoyalty && (
         <section className="h-fit rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink dark:text-white">
@@ -415,8 +424,10 @@ export function LoyaltyAdminPage() {
             </ul>
           </div>
         </section>
+        )}
 
-        <div className="space-y-6">
+        <div className={canManageLoyalty ? "space-y-6" : ""}>
+          {canManageLoyalty && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <h2 className="text-lg font-bold text-ink dark:text-white">{t("loyaltyAdmin.adjustment.title")}</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t("loyaltyAdmin.adjustment.help")}</p>
@@ -459,6 +470,7 @@ export function LoyaltyAdminPage() {
               )}
             </form>
           </section>
+          )}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <h2 className="text-lg font-bold text-ink dark:text-white">{t("loyaltyAdmin.redemptions.title")}</h2>
@@ -480,25 +492,29 @@ export function LoyaltyAdminPage() {
                         </div>
                         <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">{t("loyaltyAdmin.redemptions.pending")}</span>
                       </div>
-                      <label className={`mt-3 block ${fieldLabelClass}`} htmlFor={`resolution-${redemption.id}`}>
-                        {t("loyaltyAdmin.redemptions.rejectReason")}
-                        <textarea
-                          className={`${inputClass} min-h-16 py-2`}
-                          id={`resolution-${redemption.id}`}
-                          maxLength={500}
-                          onChange={(event) => setResolutionReasons((current) => ({ ...current, [redemption.id]: event.target.value }))}
-                          value={resolutionReasons[redemption.id] ?? ""}
-                        />
-                      </label>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={resolvePending} onClick={() => void handleResolution(redemption.id, "fulfilled")} type="button">
-                          {resolvePending ? <LoaderCircle aria-hidden="true" className="animate-spin" size={16} /> : <Check aria-hidden="true" size={16} />}
-                          {t("loyaltyAdmin.redemptions.fulfill")}
-                        </button>
-                        <button className="inline-flex min-h-10 items-center rounded-lg border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-60 dark:border-red-900 dark:text-red-300" disabled={resolvePending} onClick={() => void handleResolution(redemption.id, "rejected")} type="button">
-                          {t("loyaltyAdmin.redemptions.reject")}
-                        </button>
-                      </div>
+                      {canFulfillRedemptions && (
+                        <>
+                          <label className={`mt-3 block ${fieldLabelClass}`} htmlFor={`resolution-${redemption.id}`}>
+                            {t("loyaltyAdmin.redemptions.rejectReason")}
+                            <textarea
+                              className={`${inputClass} min-h-16 py-2`}
+                              id={`resolution-${redemption.id}`}
+                              maxLength={500}
+                              onChange={(event) => setResolutionReasons((current) => ({ ...current, [redemption.id]: event.target.value }))}
+                              value={resolutionReasons[redemption.id] ?? ""}
+                            />
+                          </label>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={resolvePending} onClick={() => void handleResolution(redemption.id, "fulfilled")} type="button">
+                              {resolvePending ? <LoaderCircle aria-hidden="true" className="animate-spin" size={16} /> : <Check aria-hidden="true" size={16} />}
+                              {t("loyaltyAdmin.redemptions.fulfill")}
+                            </button>
+                            <button className="inline-flex min-h-10 items-center rounded-lg border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-60 dark:border-red-900 dark:text-red-300" disabled={resolvePending} onClick={() => void handleResolution(redemption.id, "rejected")} type="button">
+                              {t("loyaltyAdmin.redemptions.reject")}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </li>
                   );
                 })}

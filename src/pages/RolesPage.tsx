@@ -33,6 +33,7 @@ type ToastState = { type: "success" | "error"; key: string } | null;
 const groups = [
   "accounts",
   "customers",
+  "loyalty",
   "employees",
   "resources",
   "checkins",

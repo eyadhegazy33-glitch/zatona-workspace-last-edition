@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChartNoAxesCombined,
   CalendarDays,
+  Gift,
   BellRing,
   Clock3,
   ClipboardCheck,
@@ -237,8 +238,14 @@ const navigationItems: NavigationItem[] = [
   {
     labelKey: "layout.navigation.loyalty",
     path: "/admin/loyalty",
-    permission: "loyalty.manage",
+    permission: ["loyalty.view", "loyalty.manage"],
     icon: Award,
+  },
+  {
+    labelKey: "layout.navigation.redemptions",
+    path: "/admin/loyalty/redemptions",
+    permission: ["loyalty.redemptions.fulfill", "loyalty.manage"],
+    icon: Gift,
   },
   {
     labelKey: "layout.navigation.settings",

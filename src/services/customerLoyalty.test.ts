@@ -11,6 +11,7 @@ vi.mock("../lib/supabase", () => ({
 import {
   adjustCustomerLoyaltyPoints,
   getCustomerLoyaltyPortal,
+  getLoyaltyAdminData,
 } from "./customerLoyalty";
 
 describe("customer loyalty adjustments", () => {
@@ -84,5 +85,63 @@ describe("customer loyalty adjustments", () => {
     expect(rpcMock).toHaveBeenCalledWith("get_customer_loyalty_portal", {
       p_token: "a".repeat(64),
     });
+  });
+
+  it("parses pending redemption customer first names from the staff response", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        points_per_currency_unit: 1,
+        rewards: [],
+        redemptions: [{
+          id: "fake-redemption-id",
+          customer_id: "fake-customer-id",
+          customer_first_name: "Test",
+          customer_name: "Test Customer",
+          customer_code: "TEST-001",
+          reward_id: "fake-reward-id",
+          reward_name_en: "Test reward",
+          reward_name_ar: "مكافأة تجريبية",
+          points_cost: 25,
+          status: "requested",
+          requested_at: "2026-01-01T12:00:00Z",
+          resolution_reason: null,
+        }],
+      },
+      error: null,
+    });
+
+    const result = await getLoyaltyAdminData();
+
+    expect(result.redemptions).toHaveLength(1);
+    expect(result.redemptions[0].customer_first_name).toBe("Test");
+    expect(result.redemptions[0].reward_name_en).toBe("Test reward");
+    expect(rpcMock).toHaveBeenCalledWith("get_loyalty_admin_data");
+  });
+
+  it("supports the current staff RPC payload while the first-name migration is pending", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        points_per_currency_unit: 1,
+        rewards: [],
+        redemptions: [{
+          id: "fake-redemption-id",
+          customer_id: "fake-customer-id",
+          customer_name: "Test Customer",
+          customer_code: "TEST-001",
+          reward_id: "fake-reward-id",
+          reward_name_en: "Test reward",
+          reward_name_ar: "مكافأة تجريبية",
+          points_cost: 25,
+          status: "requested",
+          requested_at: "2026-01-01T12:00:00Z",
+          resolution_reason: null,
+        }],
+      },
+      error: null,
+    });
+
+    const result = await getLoyaltyAdminData();
+
+    expect(result.redemptions[0].customer_first_name).toBe("Test");
   });
 });

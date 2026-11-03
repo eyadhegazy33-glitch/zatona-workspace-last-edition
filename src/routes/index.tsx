@@ -463,13 +463,31 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            element: <PermissionRoute permission="loyalty.manage" />,
+            element: <PermissionRoute permission={["loyalty.view", "loyalty.manage"]} />,
             children: [
               {
                 path: "/admin/loyalty",
                 lazy: async () => {
                   const { LoyaltyAdminPage } = await import("../pages/LoyaltyAdminPage");
                   return { Component: LoyaltyAdminPage };
+                },
+              },
+            ],
+          },
+          {
+            element: (
+              <PermissionRoute
+                permission={["loyalty.redemptions.fulfill", "loyalty.manage"]}
+              />
+            ),
+            children: [
+              {
+                path: "/admin/loyalty/redemptions",
+                lazy: async () => {
+                  const { LoyaltyRedemptionsPage } = await import(
+                    "../pages/LoyaltyRedemptionsPage"
+                  );
+                  return { Component: LoyaltyRedemptionsPage };
                 },
               },
             ],

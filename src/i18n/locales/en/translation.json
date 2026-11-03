@@ -150,6 +150,24 @@
       "reject": "Reject and return points"
     }
   },
+  "loyaltyFulfillment": {
+    "title": "Reward fulfillment",
+    "description": "Review pending customer reward requests before handing over the reward.",
+    "loading": "Loading pending reward requests",
+    "refresh": "Refresh",
+    "retry": "Try again",
+    "customer": "Customer",
+    "reward": "Reward",
+    "confirmTitle": "Confirm reward fulfillment",
+    "confirmMessage": "Check the customer and reward below before confirming handover.",
+    "confirm": "Confirm fulfillment",
+    "cancel": "Cancel",
+    "errors": {
+      "load": "Pending reward requests could not be loaded.",
+      "action": "The reward request could not be fulfilled. Please try again.",
+      "refresh": "The fulfillment was recorded, but the pending list could not be refreshed."
+    }
+  },
   "auditLog": {
     "title": "Audit log",
     "description": "Read-only history of staff activity and customer scans.",
@@ -329,6 +347,7 @@
       "roles": "Roles",
       "auditLog": "Audit log",
       "loyalty": "Customer loyalty",
+      "redemptions": "Reward fulfillment",
       "settings": "Settings"
     },
     "openNavigation": "Open navigation",
@@ -759,6 +778,7 @@
     "groups": {
       "accounts": "Accounts",
       "customers": "Customers",
+      "loyalty": "Customer loyalty",
       "employees": "Employees",
       "resources": "Resources",
       "checkins": "Check-ins",
@@ -776,6 +796,9 @@
       "customers.delete": "Delete customers",
       "customers.import": "Import customers",
       "customers.cards": "Print customer cards",
+      "loyalty.view": "View loyalty data",
+      "loyalty.redemptions.fulfill": "Resolve reward redemptions",
+      "loyalty.portal.issue": "Issue loyalty portal codes",
       "employees.view": "View employees",
       "employees.manage": "Manage employees",
       "resources.manage": "Manage seats, rooms, and tables",
@@ -794,6 +817,9 @@
       "customers.delete": "Soft-delete customer records.",
       "customers.import": "Import customer records.",
       "customers.cards": "Read QR tokens and print customer cards.",
+      "loyalty.view": "View customer loyalty balances, rewards, and redemption requests.",
+      "loyalty.redemptions.fulfill": "Fulfill or reject customer reward redemption requests.",
+      "loyalty.portal.issue": "Set or reset customer loyalty portal PINs.",
       "employees.view": "View employee records.",
       "employees.manage": "Edit, suspend, reactivate, and remove employees.",
       "resources.manage": "Create and manage seats, rooms, and tables.",

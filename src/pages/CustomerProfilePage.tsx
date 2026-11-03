@@ -115,7 +115,9 @@ export function CustomerProfilePage() {
   const canEdit = permissions.includes("customers.edit");
   const canDelete = permissions.includes("customers.delete");
   const canPrint = permissions.includes("customers.cards");
-  const canManageLoyalty = permissions.includes("loyalty.manage");
+  const canIssueLoyaltyPortalCode =
+    permissions.includes("loyalty.portal.issue") ||
+    permissions.includes("loyalty.manage");
   const dateLocale = i18n.language === "ar" ? "ar" : "en";
 
   const refresh = useCallback(async () => {
@@ -425,7 +427,7 @@ export function CustomerProfilePage() {
                   {t("quality.feedback.record")}
                 </button>
               )}
-              {canManageLoyalty && (
+              {canIssueLoyaltyPortalCode && (
                 <button
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand/40 px-3 text-sm font-semibold text-brand"
                   onClick={() => {

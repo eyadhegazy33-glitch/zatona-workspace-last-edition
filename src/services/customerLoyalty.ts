@@ -42,6 +42,7 @@ export type CustomerLoyaltyPortalData = {
 
 export type LoyaltyAdminRedemption = LoyaltyRedemption & {
   customer_id: string;
+  customer_first_name: string;
   customer_name: string;
   customer_code: string;
   reward_id: string;
@@ -221,10 +222,19 @@ export async function getLoyaltyAdminData(): Promise<LoyaltyAdminData> {
   if (!isRecord(data)) throw new Error("Loyalty administration response was invalid.");
   const redemptions = parseArray(data.redemptions, (item) => {
     if (!isRecord(item)) throw new Error("Loyalty redemption response was invalid.");
+    const customerName = requiredString(item.customer_name, "redemption.customer_name");
+    const customerFirstName =
+      typeof item.customer_first_name === "string"
+        ? item.customer_first_name
+        : customerName.trim().split(/\s+/, 1)[0];
+    if (!customerFirstName) {
+      throw new Error("Loyalty redemption customer name was invalid.");
+    }
     return {
       ...parseRedemption(item),
       customer_id: requiredString(item.customer_id, "redemption.customer_id"),
-      customer_name: requiredString(item.customer_name, "redemption.customer_name"),
+      customer_first_name: customerFirstName,
+      customer_name: customerName,
       customer_code: requiredString(item.customer_code, "redemption.customer_code"),
       reward_id: requiredString(item.reward_id, "redemption.reward_id"),
     };
