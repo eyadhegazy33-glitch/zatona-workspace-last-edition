@@ -1160,6 +1160,8 @@ export type Database = {
           acknowledged_by: string | null;
           acknowledged_at: string | null;
           assigned_to: string | null;
+          resolved_by: string | null;
+          manual_resolution: boolean;
           created_at: string;
           resolved_at: string | null;
         },
@@ -1175,6 +1177,8 @@ export type Database = {
           acknowledged_by?: string | null;
           acknowledged_at?: string | null;
           assigned_to?: string | null;
+          resolved_by?: string | null;
+          manual_resolution?: boolean;
           created_at?: string;
           resolved_at?: string | null;
         },
@@ -1190,6 +1194,8 @@ export type Database = {
           acknowledged_by?: string | null;
           acknowledged_at?: string | null;
           assigned_to?: string | null;
+          resolved_by?: string | null;
+          manual_resolution?: boolean;
           created_at?: string;
           resolved_at?: string | null;
         }
@@ -1378,6 +1384,10 @@ export type Database = {
       };
       assign_alert: {
         Args: { p_id: string; p_user: string };
+        Returns: undefined;
+      };
+      resolve_alert: {
+        Args: { p_id: string };
         Returns: undefined;
       };
       snooze_alert: {

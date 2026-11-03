@@ -136,6 +136,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     setOpen(false);
     if (notification.type === "account_pending") {
       navigate("/admin/pending-accounts");
+    } else if (notification.type === "alert_assigned") {
+      navigate("/alerts");
     }
   };
 

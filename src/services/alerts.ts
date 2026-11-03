@@ -28,11 +28,6 @@ const assignmentSchema = z.object({
   alertId: z.string().uuid(),
   userId: z.string().uuid(),
 });
-const snoozeSchema = z.object({
-  alertId: z.string().uuid(),
-  minutes: z.union([z.literal(15), z.literal(60), z.literal(240)]),
-});
-
 function requireData<T>(data: T | null): T {
   if (data === null) throw new Error("The alert request returned no data.");
   return data;
@@ -69,12 +64,6 @@ export async function getAlertStaff(): Promise<AlertStaff[]> {
   return requireData(data);
 }
 
-export async function acknowledgeAlert(alertId: string): Promise<void> {
-  const id = alertIdSchema.parse(alertId);
-  const { error } = await getSupabaseClient().rpc("acknowledge_alert", { p_id: id });
-  if (error) throw error;
-}
-
 export async function assignAlert(alertId: string, userId: string): Promise<void> {
   const assignment = assignmentSchema.parse({ alertId, userId });
   const { error } = await getSupabaseClient().rpc("assign_alert", {
@@ -84,12 +73,9 @@ export async function assignAlert(alertId: string, userId: string): Promise<void
   if (error) throw error;
 }
 
-export async function snoozeAlert(alertId: string, minutes: number): Promise<void> {
-  const input = snoozeSchema.parse({ alertId, minutes });
-  const { error } = await getSupabaseClient().rpc("snooze_alert", {
-    p_id: input.alertId,
-    p_minutes: input.minutes,
-  });
+export async function resolveAlert(alertId: string): Promise<void> {
+  const id = alertIdSchema.parse(alertId);
+  const { error } = await getSupabaseClient().rpc("resolve_alert", { p_id: id });
   if (error) throw error;
 }
 

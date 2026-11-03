@@ -15,11 +15,10 @@ import { useAuth } from "../hooks/useAuth";
 import { useAlertOverview } from "../hooks/useAlertOverview";
 import { getSupabaseClient } from "../lib/supabase";
 import {
-  acknowledgeAlert,
   assignAlert,
   getAlertStaff,
   listAlerts,
-  snoozeAlert,
+  resolveAlert,
   type Alert,
   type AlertSeverity,
   type AlertStaff,
@@ -175,10 +174,12 @@ const tabs: AlertTab[] = ["active", "snoozed", "resolved"];
 
 export function AlertsPage() {
   const { i18n, t } = useTranslation();
-  const { permissions } = useAuth();
+  const { permissions, profile } = useAuth();
+  const canViewAll = permissions.includes("alerts.view");
+  const canViewAssigned = permissions.includes("alerts.view_assigned");
   const canManage = permissions.includes("alerts.manage");
   const { overview, error: overviewError, retry: retryOverview } = useAlertOverview(
-    permissions.includes("alerts.view"),
+    canViewAll,
   );
   const [tab, setTab] = useState<AlertTab>("active");
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -188,6 +189,7 @@ export function AlertsPage() {
   const [staffError, setStaffError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<Record<string, string>>({});
   const [muted, setMuted] = useState(readStoredMute);
   const [soundUnavailable, setSoundUnavailable] = useState(false);
   const seenIds = useRef(new Set<string>());
@@ -310,6 +312,18 @@ export function AlertsPage() {
     }
   };
 
+  const assignSelectedStaff = (alertId: string, userId: string) => {
+    if (!userId) return;
+    void runAction(alertId, async () => {
+      await assignAlert(alertId, userId);
+      setSelectedStaff((current) => {
+        const next = { ...current };
+        delete next[alertId];
+        return next;
+      });
+    });
+  };
+
   const toggleMute = async () => {
     const nextMuted = !muted;
     setMuted(nextMuted);
@@ -330,9 +344,11 @@ export function AlertsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-ink dark:text-white">
             <BellRing aria-hidden="true" className="text-brand" size={24} />
-            {t("alerts.title")}
+            {t(canViewAssigned && !canViewAll ? "alerts.myTasksTitle" : "alerts.title")}
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t("alerts.description")}</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            {t(canViewAssigned && !canViewAll ? "alerts.myTasksDescription" : "alerts.description")}
+          </p>
         </div>
         <button
           aria-pressed={muted}
@@ -345,21 +361,21 @@ export function AlertsPage() {
         </button>
       </header>
 
-      {overviewError && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100" role="alert">{t("alerts.errors.overview")} <button className="ms-2 font-semibold underline" onClick={() => void retryOverview()} type="button">{t("alerts.actions.retry")}</button></p>}
+      {canViewAll && overviewError && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100" role="alert">{t("alerts.errors.overview")} <button className="ms-2 font-semibold underline" onClick={() => void retryOverview()} type="button">{t("alerts.actions.retry")}</button></p>}
       {soundUnavailable && !muted && <p className="mt-4 text-sm text-amber-700 dark:text-amber-300" role="status">{t("alerts.sound.unavailable")}</p>}
       {actionError && <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{t("alerts.errors.action")}</p>}
       {staffError && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100" role="alert">{t("alerts.errors.staff")}</p>}
 
-      <div aria-label={t("alerts.severityCounts")} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group">
+      {canViewAll && <div aria-label={t("alerts.severityCounts")} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group">
         {(["critical", "high", "medium", "low"] as const).map((severity) => (
           <div className={`rounded-xl border-s-4 bg-white p-4 shadow-sm dark:bg-slate-900 ${alertSeverityClass(severity)}`} key={severity}>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{t(`alerts.severities.${severity}`)}</p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-ink dark:text-white">{overview?.[`${severity}_count`] ?? "—"}</p>
           </div>
         ))}
-      </div>
+      </div>}
 
-      <div className="mt-6 border-b border-slate-200 dark:border-slate-800">
+      {canViewAll && <div className="mt-6 border-b border-slate-200 dark:border-slate-800">
         <div aria-label={t("alerts.tabs.label")} className="flex gap-2 overflow-x-auto" role="tablist">
           {tabs.map((value) => (
             <button
@@ -378,7 +394,15 @@ export function AlertsPage() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
+
+      {tab !== "resolved" && (
+        <p className="mt-4 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+          {t(canManage
+            ? tab === "snoozed" ? "alerts.help.assignSnoozed" : "alerts.help.assign"
+            : "alerts.help.resolve")}
+        </p>
+      )}
 
       {loadError && <p className="mt-5 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{t("alerts.errors.load")} <button className="ms-2 font-semibold underline" onClick={() => void refresh()} type="button">{t("alerts.actions.retry")}</button></p>}
       {loading ? (
@@ -391,6 +415,15 @@ export function AlertsPage() {
             const destination = relatedPath(alert, permissions);
             const assigned = alert.assigned_to ? staffById.get(alert.assigned_to) : null;
             const title = translatedAlertTitle(alert, t);
+            const selectedEmployeeId = selectedStaff[alert.id] ?? alert.assigned_to ?? "";
+            const resolvedByStaff = alert.resolved_by ? staffById.get(alert.resolved_by) : undefined;
+            const resolvedBy = alert.resolved_by
+              ? alert.resolved_by === profile?.id && profile
+                ? `${profile.first_name} ${profile.last_name}`.trim()
+                : resolvedByStaff
+                  ? `${resolvedByStaff.first_name} ${resolvedByStaff.last_name}`.trim()
+                  : t("alerts.assigned")
+              : null;
             return (
               <li className={`rounded-xl border border-slate-200 border-s-4 p-4 shadow-sm dark:border-slate-800 sm:p-5 ${alertSeverityClass(alert.severity)}`} key={alert.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -408,48 +441,67 @@ export function AlertsPage() {
                     {alert.status === "snoozed" && alert.snoozed_until && (
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{t("alerts.snoozedUntil", { time: new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" }).format(new Date(alert.snoozed_until)) })}</p>
                     )}
-                    {alert.assigned_to && <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{t("alerts.assignedTo", { name: assigned ? `${assigned.first_name} ${assigned.last_name}`.trim() : t("alerts.assigned") })}</p>}
+                    {alert.type === "cash_difference" && alert.status !== "resolved" && (
+                      <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{t("alerts.help.cashDifference")}</p>
+                    )}
+                    {alert.assigned_to && (
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                        {alert.assigned_to === profile?.id
+                          ? t("alerts.assignedToYou")
+                          : t("alerts.assignedTo", {
+                            name: assigned
+                              ? `${assigned.first_name} ${assigned.last_name}`.trim()
+                              : t("alerts.assigned"),
+                          })}
+                      </p>
+                    )}
+                    {resolvedBy && alert.status === "resolved" && (
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                        {t("alerts.actions.resolvedBy", { name: resolvedBy })}
+                      </p>
+                    )}
                   </div>
                   {destination && <Link className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-brand px-3 text-sm font-semibold text-brand hover:bg-white/70 dark:hover:bg-slate-900" to={destination}>{t("alerts.actions.openRelated")}</Link>}
                 </div>
 
-                {canManage && alert.status !== "resolved" && (
+                {(canManage || alert.assigned_to === profile?.id) && alert.status !== "resolved" && (
                   <div className="mt-4 flex flex-col gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-center">
-                    {alert.status === "open" && (
-                      <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={busyId === alert.id} onClick={() => void runAction(alert.id, () => acknowledgeAlert(alert.id))} type="button">
-                        {busyId === alert.id ? <LoaderCircle className="animate-spin" size={16} /> : <Check aria-hidden="true" size={16} />}
-                        {t("alerts.actions.acknowledge")}
-                      </button>
-                    )}
-                    <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                      <span className="sr-only">{t("alerts.actions.assign")}</span>
-                      <select
-                        aria-label={t("alerts.actions.assign")}
-                        className="min-h-10 min-w-48 rounded-lg border border-slate-300 bg-white px-2 dark:border-slate-700 dark:bg-slate-950"
-                        disabled={busyId === alert.id || staff.length === 0}
-                        onChange={(event) => {
-                          if (event.target.value) void runAction(alert.id, () => assignAlert(alert.id, event.target.value));
-                        }}
-                        value=""
-                      >
-                        <option value="">{t("alerts.actions.assign")}</option>
-                        {staff.map((member) => <option key={member.user_id} value={member.user_id}>{member.first_name} {member.last_name}{member.role_name ? ` · ${member.role_name}` : ""}</option>)}
-                      </select>
-                    </label>
-                    {alert.status !== "snoozed" && (
-                      <div className="flex flex-wrap gap-2">
-                        {[15, 60, 240].map((minutes) => (
-                          <button
-                            className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-white/70 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
-                            disabled={busyId === alert.id}
-                            key={minutes}
-                            onClick={() => void runAction(alert.id, () => snoozeAlert(alert.id, minutes))}
-                            type="button"
-                          >
-                            {minutes === 15 ? t("alerts.actions.snooze15") : minutes === 60 ? t("alerts.actions.snooze60") : t("alerts.actions.snooze240")}
-                          </button>
-                        ))}
+                    {canManage && (
+                      <div className="flex w-full flex-col gap-2 sm:flex-row">
+                        <select
+                          aria-label={t("alerts.actions.assign")}
+                          className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                          disabled={busyId === alert.id || staff.length === 0}
+                          onChange={(event) => setSelectedStaff((current) => ({
+                            ...current,
+                            [alert.id]: event.target.value,
+                          }))}
+                          value={selectedEmployeeId}
+                        >
+                          <option value="">{t("alerts.actions.chooseStaff")}</option>
+                          {staff.map((member) => <option key={member.user_id} value={member.user_id}>{member.first_name} {member.last_name}{member.role_name ? ` · ${member.role_name}` : ""}</option>)}
+                        </select>
+                        <button
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60"
+                          disabled={busyId === alert.id || !selectedEmployeeId}
+                          onClick={() => assignSelectedStaff(alert.id, selectedEmployeeId)}
+                          type="button"
+                        >
+                          {busyId === alert.id ? <LoaderCircle className="animate-spin" size={16} /> : <Check aria-hidden="true" size={16} />}
+                          {t("alerts.actions.assign")}
+                        </button>
                       </div>
+                    )}
+                    {alert.assigned_to === profile?.id && (
+                      <button
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-60"
+                        disabled={busyId === alert.id}
+                        onClick={() => void runAction(alert.id, () => resolveAlert(alert.id))}
+                        type="button"
+                      >
+                        {busyId === alert.id ? <LoaderCircle className="animate-spin" size={16} /> : <Check aria-hidden="true" size={16} />}
+                        {t("alerts.actions.markResolved")}
+                      </button>
                     )}
                   </div>
                 )}

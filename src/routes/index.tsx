@@ -81,7 +81,7 @@ export const router = createBrowserRouter([
             }],
           },
           {
-            element: <PermissionRoute permission="alerts.view" />,
+            element: <PermissionRoute permission={["alerts.view", "alerts.view_assigned"]} />,
             children: [
               {
                 path: "/alerts",

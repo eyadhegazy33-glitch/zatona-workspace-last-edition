@@ -140,7 +140,7 @@ const navigationItems: NavigationItem[] = [
   {
     labelKey: "layout.navigation.alerts",
     path: "/alerts",
-    permission: "alerts.view",
+    permission: ["alerts.view", "alerts.view_assigned"],
     icon: BellRing,
   },
   {

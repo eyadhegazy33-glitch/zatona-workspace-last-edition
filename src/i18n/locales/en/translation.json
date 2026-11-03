@@ -2158,6 +2158,7 @@
     "types": {
       "account_pending": "A new account is waiting for approval.",
       "account_approved": "Your account was approved.",
+      "alert_assigned": "A new alert has been assigned to you.",
       "default": "You have a new notification."
     }
   },
@@ -2726,6 +2727,8 @@
   },
   "alerts": {
     "title": "Alert Center",
+    "myTasksTitle": "My assigned tasks",
+    "myTasksDescription": "Handle the alerts assigned to you. Mark each task resolved when finished.",
     "description": "Review active, snoozed, and recently resolved alerts.",
     "criticalBanner": "An unacknowledged critical alert needs attention.",
     "openCenter": "Open Alert Center",
@@ -2733,7 +2736,14 @@
     "loading": "Loading alerts…",
     "assigned": "Staff member",
     "assignedTo": "Assigned to {{name}}",
+    "assignedToYou": "Assigned to you",
     "snoozedUntil": "Snoozed until {{time}}",
+    "help": {
+      "assign": "Choose an employee and select Assign task. They will receive a notification and can mark the task resolved when finished.",
+      "assignSnoozed": "Choose an employee and select Assign task to return this alert to active and send it to them.",
+      "resolve": "Fix the issue, then select Mark resolved. Only the assigned employee can finish this task.",
+      "cashDifference": "Review the shift amounts. Cash difference alerts clear automatically after 24 hours."
+    },
     "empty": {
       "active": "There are no active alerts.",
       "snoozed": "There are no snoozed alerts.",
@@ -2779,7 +2789,11 @@
     "actions": {
       "openRelated": "Open related item",
       "acknowledge": "Acknowledge",
-      "assign": "Assign to staff",
+      "returnToActive": "Return to active",
+      "assign": "Assign task",
+      "chooseStaff": "Choose an employee",
+      "markResolved": "Mark resolved",
+      "resolvedBy": "Resolved by {{name}}",
       "snooze15": "Snooze 15 min",
       "snooze60": "Snooze 1 hour",
       "snooze240": "Snooze 4 hours",
