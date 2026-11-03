@@ -83,7 +83,7 @@ function getCameraError(error: unknown) {
     ConstraintNotSatisfiedError: "scan.camera.overconstrained",
     SecurityError: "scan.camera.secureContext",
     AbortError: "scan.camera.aborted",
-    UnknownError: "scan.camera.startFailed",
+    UnknownError: "scan.camera.deviceError",
   };
   return { key: keyByName[name] ?? "scan.camera.startFailed", name };
 }
@@ -175,7 +175,9 @@ export function ScanPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const scannerRunningRef = useRef(false);
+  const scannerStartingRef = useRef(false);
   const stopScannerRef = useRef<() => Promise<void>>(async () => undefined);
+  const startScannerRef = useRef<() => void>(() => undefined);
   const testVideoRef = useRef<HTMLVideoElement | null>(null);
   const testStreamRef = useRef<MediaStream | null>(null);
   const testTimerRef = useRef<number | null>(null);
@@ -189,6 +191,7 @@ export function ScanPage() {
     name?: string;
   } | null>(null);
   const [cameraDevices, setCameraDevices] = useState<Array<{ id: string; label: string }>>([]);
+  const [cameraRunning, setCameraRunning] = useState(false);
   const [cameraDeviceId, setCameraDeviceId] = useState(() =>
     window.localStorage.getItem(CAMERA_DEVICE_STORAGE_KEY) ?? "",
   );
@@ -208,7 +211,6 @@ export function ScanPage() {
   const [checkoutCheckinId, setCheckoutCheckinId] = useState<number | null>(null);
   const [feedbackCustomerId, setFeedbackCustomerId] = useState<string | null>(null);
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
-  const [cameraStartAttempt, setCameraStartAttempt] = useState(0);
   const [insideError, setInsideError] = useState(false);
   const currentLocale = i18n.language || "en";
 
@@ -443,6 +445,7 @@ export function ScanPage() {
           // stop() can reject when StrictMode already stopped it.
         }
         scannerRunningRef.current = false;
+        setCameraRunning(false);
       }
       if (scanner && clear) {
         try {
@@ -460,7 +463,8 @@ export function ScanPage() {
         disposed ||
         document.hidden ||
         testingCamera ||
-        scannerRunningRef.current
+        scannerRunningRef.current ||
+        scannerStartingRef.current
       ) return;
 
       if (!window.isSecureContext) {
@@ -472,85 +476,128 @@ export function ScanPage() {
         return;
       }
 
+      scannerStartingRef.current = true;
       try {
-        if (navigator.permissions?.query) {
-          const permission = await navigator.permissions.query({ name: "camera" as PermissionName });
-          if (permission.state === "denied") {
-            setCameraError({ message: t("scan.camera.permissionDenied"), name: "NotAllowedError" });
-            return;
-          }
-        }
-      } catch {
-        // Some browsers omit or reject the camera permission query.
-      }
+        const constraints: Array<Record<string, unknown>> = [
+          ...(cameraDeviceId
+            ? [{ deviceId: { exact: cameraDeviceId } }]
+            : []),
+          { facingMode: { ideal: "environment" } },
+          { facingMode: { ideal: "user" } },
+        ];
 
-      let devices: Array<{ id: string; label: string }> = [];
-      try {
-        devices = await Html5Qrcode.getCameras();
-        if (!disposed) setCameraDevices(devices);
-      } catch {
-        // The fallback-facing constraints can still open a camera in this browser.
-      }
-      if (disposed || devices.length === 0 && !window.isSecureContext) return;
-
-      const constraints: Array<Record<string, unknown>> = [
-        ...(cameraDeviceId
-          ? [{ deviceId: { exact: cameraDeviceId } }]
-          : []),
-        { facingMode: { ideal: "environment" } },
-        { facingMode: { ideal: "user" } },
-        ...(devices[0] ? [{ deviceId: { exact: devices[0].id } }] : []),
-      ];
-
-      let lastError: unknown = null;
-      for (const constraint of constraints) {
-        if (disposed || document.hidden) return;
-        await stopScanner(true);
-        const scanner = new Html5Qrcode("scanner-reader");
-        scannerRef.current = scanner;
-        try {
-          await scanner.start(
-            constraint,
-            { fps: 12, qrbox: { width: 260, height: 260 } },
-            async (decodedText) => {
-              await handleScanValueRef.current(decodedText);
-            },
-            () => undefined,
-          );
-          scannerRunningRef.current = true;
-          if (disposed) {
+        let lastError: unknown = null;
+        for (const constraint of constraints) {
+          if (disposed || document.hidden) return;
+          const previousScanner = scannerRef.current;
+          if (previousScanner) {
             await stopScanner(true);
-            return;
+            if (disposed || document.hidden) return;
           }
-          setCameraError(null);
-          return;
-        } catch (error) {
-          lastError = error;
-          if (scanner.isScanning) {
-            try {
-              await scanner.stop();
-            } catch {
-              // A failed camera start may not have a stoppable stream.
+          const scanner = new Html5Qrcode("scanner-reader");
+          scannerRef.current = scanner;
+          try {
+            const startPromise = scanner.start(
+              constraint,
+              { fps: 12, qrbox: { width: 260, height: 260 } },
+              async (decodedText) => {
+                await handleScanValueRef.current(decodedText);
+              },
+              () => undefined,
+            );
+            await startPromise;
+            scannerRunningRef.current = true;
+            setCameraRunning(true);
+            if (disposed) {
+              await stopScanner(true);
+              return;
             }
+            setCameraError(null);
+            void Html5Qrcode.getCameras()
+              .then((devices) => {
+                if (!disposed) setCameraDevices(devices);
+              })
+              .catch(() => undefined);
+            return;
+          } catch (error) {
+            lastError = error;
+            if (scanner.isScanning) {
+              try {
+                await scanner.stop();
+              } catch {
+                // A failed camera start may not have a stoppable stream.
+              }
+            }
+            try {
+              scanner.clear();
+            } catch {
+              // Clearing is safe after a failed start.
+            }
+            scannerRef.current = null;
           }
-          try { scanner.clear(); } catch { /* failed start has no active stream */ }
-          scannerRef.current = null;
         }
-      }
 
-      if (!disposed) {
-        const errorDetails = getCameraError(lastError);
-        setCameraError({
-          message: t(errorDetails.key),
-          name: errorDetails.name,
-        });
+        if (!disposed && !document.hidden) {
+          try {
+            const devices = await Html5Qrcode.getCameras();
+            if (disposed) return;
+            setCameraDevices(devices);
+            for (const device of devices) {
+              if (constraints.some((constraint) => {
+                const id = (constraint.deviceId as { exact?: string } | undefined)?.exact;
+                return id === device.id;
+              })) continue;
+              const scanner = new Html5Qrcode("scanner-reader");
+              scannerRef.current = scanner;
+              try {
+                const startPromise = scanner.start(
+                  { deviceId: { exact: device.id } },
+                  { fps: 12, qrbox: { width: 260, height: 260 } },
+                  async (decodedText) => {
+                    await handleScanValueRef.current(decodedText);
+                  },
+                  () => undefined,
+                );
+                await startPromise;
+                scannerRunningRef.current = true;
+                setCameraRunning(true);
+                setCameraError(null);
+                return;
+              } catch (error) {
+                lastError = error;
+                try {
+                  if (scanner.isScanning) await scanner.stop();
+                } catch {
+                  // A failed camera start may not have a stoppable stream.
+                }
+                try {
+                  scanner.clear();
+                } catch {
+                  // Clearing is safe after a failed start.
+                }
+                scannerRef.current = null;
+              }
+            }
+          } catch {
+            // The original startup error is more useful if device discovery fails.
+          }
+        }
+
+        if (!disposed) {
+          const errorDetails = getCameraError(lastError);
+          setCameraError({
+            message: t(errorDetails.key),
+            name: errorDetails.name,
+          });
+        }
+      } finally {
+        scannerStartingRef.current = false;
       }
     };
 
-    const queueStart = () => {
-      scannerLifecycleRef.current = scannerLifecycleRef.current
-        .catch(() => undefined)
-        .then(startScanner);
+    startScannerRef.current = () => {
+      const task = startScanner();
+      scannerLifecycleRef.current = task.catch(() => undefined);
     };
     const queueStop = () => {
       scannerLifecycleRef.current = scannerLifecycleRef.current
@@ -559,18 +606,17 @@ export function ScanPage() {
     };
     const onVisibilityChange = () => {
       if (document.hidden) queueStop();
-      else queueStart();
     };
 
-    queueStart();
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       disposed = true;
+      startScannerRef.current = () => undefined;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       queueStop();
     };
-  }, [cameraStartAttempt, cameraDeviceId, testingCamera, t]);
+  }, [cameraDeviceId, testingCamera, t]);
 
   const handleTestCamera = async () => {
     setTestingCamera(true);
@@ -855,6 +901,14 @@ export function ScanPage() {
               </label>
               <button
                 type="button"
+                disabled={cameraRunning || testingCamera}
+                onClick={() => startScannerRef.current()}
+                className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {cameraError ? t("scan.camera.retry") : t("scan.camera.open")}
+              </button>
+              <button
+                type="button"
                 disabled={testingCamera}
                 onClick={() => void handleTestCamera()}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-60 dark:border-slate-700"
@@ -885,13 +939,6 @@ export function ScanPage() {
                 {cameraError.name && (
                   <p className="mt-1 text-xs opacity-75">{cameraError.name}</p>
                 )}
-                <button
-                  type="button"
-                  className="mt-2 rounded-md border border-current px-3 py-1.5 font-semibold"
-                  onClick={() => setCameraStartAttempt((attempt) => attempt + 1)}
-                >
-                  {t("scan.camera.retry")}
-                </button>
               </div>
             )}
 

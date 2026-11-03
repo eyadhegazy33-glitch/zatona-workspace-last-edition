@@ -1902,6 +1902,7 @@
       "permissionDenied": "Camera permission is blocked. Open the lock/site controls beside the address, allow Camera, then try again.",
       "secureContext": "The camera needs HTTPS. On a phone, use the HTTPS staging link, not http://192.168.x.x.",
       "startFailed": "The camera could not be opened. Check the camera and browser permissions, then try again.",
+      "deviceError": "The camera device failed to start. Close other camera apps or tabs, check your device's camera privacy settings, then try again.",
       "notFound": "No camera was found on this device.",
       "inUse": "The camera is used by another app or tab. Close other camera apps and try again.",
       "overconstrained": "This camera cannot be opened with the current settings. Choose another camera and try again.",
@@ -1913,6 +1914,7 @@
       "cameraNumber": "Camera",
       "test": "Test camera",
       "testing": "Testing for 3 seconds…",
+      "open": "Open camera",
       "testSuccess": "Camera opened successfully. The preview will close in a moment."
     },
     "manual": {
