@@ -43,6 +43,16 @@ export class AuthServiceError extends Error {
 const profileRequests = new Map<string, Promise<MyProfile | null>>();
 
 function toAuthServiceError(error: AuthError): AuthServiceError {
+  if (
+    error.code === "redirect_to_not_allowed" ||
+    (error.code === "validation_failed" &&
+      /redirect.*(?:not allowed|allowlisted)/i.test(error.message))
+  ) {
+    return new AuthServiceError("auth.errors.redirectNotAllowed", {
+      cause: error,
+    });
+  }
+
   if (error.code === "email_not_confirmed") {
     return new AuthServiceError("auth.errors.emailNotConfirmed", { cause: error });
   }

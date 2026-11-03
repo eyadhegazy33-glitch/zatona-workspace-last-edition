@@ -439,6 +439,7 @@
       "tooManyAttempts": "Supabase is temporarily limiting sign-in or sign-up requests from this network. Wait a few minutes, then try again. This is not a password error.",
       "emailAlreadyRegistered": "An account with this email address already exists.",
       "weakPassword": "Choose a stronger password with at least 8 characters, including a letter and a number.",
+      "redirectNotAllowed": "Password reset is not configured for this website. Please contact an administrator.",
       "network": "We couldn't reach the service. Check your connection and try again.",
       "supabaseNotConfigured": "Authentication is unavailable until the Supabase URL and anonymous key are configured in your .env file.",
       "generic": "We couldn't complete that request. Please try again.",

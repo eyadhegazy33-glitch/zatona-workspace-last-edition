@@ -44,6 +44,7 @@ import { useBranding } from "../hooks/useBranding";
 import { TimerWidget } from "../components/TimerWidget";
 import { CustomerPaymentDialog } from "./CustomerCheckoutPage";
 import { orderSchema } from "../lib/validationSchemas";
+import { getCameraErrorDetails } from "../lib/cameraErrors";
 
 type CartLine = {
   itemId: string;
@@ -97,17 +98,7 @@ function getErrorKey(cause: unknown): string {
 }
 
 function getCameraErrorKey(cause: unknown): string {
-  const name = cause instanceof Error ? cause.name : "";
-  if (name === "NotAllowedError" || name === "SecurityError") return "scan.camera.permissionDenied";
-  if (name === "NotFoundError" || name === "DevicesNotFoundError") return "scan.camera.notFound";
-  if (name === "NotReadableError" || name === "TrackStartError") {
-    return "scan.camera.inUse";
-  }
-  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
-    return "scan.camera.overconstrained";
-  }
-  if (name === "AbortError") return "scan.camera.aborted";
-  return "ordersNew.errors.camera";
+  return getCameraErrorDetails(cause).key;
 }
 
 function formatClock(seconds: number): string {
@@ -240,23 +231,14 @@ export function NewOrderPage() {
         return;
       }
 
-      let cameras: Array<{ id: string; label: string }> = [];
-      try {
-        cameras = await Html5Qrcode.getCameras();
-      } catch {
-        // The browser may still accept a facing-mode constraint without device labels.
-      }
-      if (cancelled) return;
-      const rearCamera = cameras.find((camera) => /rear|back|environment/i.test(camera.label));
-      const preferredCamera = rearCamera ?? cameras[0];
       const constraints: Array<string | MediaTrackConstraints> = [
-        ...(preferredCamera ? [{ deviceId: { exact: preferredCamera.id } }] : []),
         { facingMode: { ideal: "environment" } },
       ];
       let lastError: unknown = null;
 
-      for (const constraint of constraints) {
+      for (let index = 0; index < constraints.length; index += 1) {
         if (cancelled) return;
+        const constraint = constraints[index];
         const scanner = new Html5Qrcode(cameraId);
         activeScanner = scanner;
         cameraRef.current = scanner;
@@ -281,6 +263,20 @@ export function NewOrderPage() {
             scanner.clear();
           } catch {
             // A failed camera start may leave no scanner UI to clear.
+          }
+          if (index === 0 && !cancelled) {
+            try {
+              const cameras = await Html5Qrcode.getCameras();
+              const preferred = [
+                ...cameras.filter((camera) => /rear|back|environment/i.test(camera.label)),
+                ...cameras.filter((camera) => !/rear|back|environment/i.test(camera.label)),
+              ];
+              constraints.push(...preferred.map((camera) => ({
+                deviceId: { exact: camera.id },
+              })));
+            } catch {
+              // Preserve the original camera startup error if device discovery fails.
+            }
           }
         }
       }

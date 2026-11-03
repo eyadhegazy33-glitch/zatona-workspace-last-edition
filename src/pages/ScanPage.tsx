@@ -17,6 +17,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getSupabaseClient } from "../lib/supabase";
 import { useResources } from "../hooks/useResources";
 import { getStudentTypeName } from "../services/customers";
+import { getCameraErrorDetails } from "../lib/cameraErrors";
 import { TimerWidget } from "../components/TimerWidget";
 import { CheckoutDialog } from "../components/CheckoutDialog";
 import { CustomerFeedbackDialog } from "../components/CustomerFeedbackDialog";
@@ -66,27 +67,6 @@ type LastScanState = {
 const SCAN_COOLDOWN_MS = 3000;
 const RESULT_RESET_MS = 5000;
 const CAMERA_DEVICE_STORAGE_KEY = "elzatona.camera.deviceId";
-
-function getCameraError(error: unknown) {
-  const name = error instanceof DOMException
-    ? error.name
-    : error instanceof Error
-      ? error.name
-      : "UnknownError";
-  const keyByName: Record<string, string> = {
-    NotAllowedError: "scan.camera.permissionDenied",
-    NotFoundError: "scan.camera.notFound",
-    DevicesNotFoundError: "scan.camera.notFound",
-    NotReadableError: "scan.camera.inUse",
-    TrackStartError: "scan.camera.inUse",
-    OverconstrainedError: "scan.camera.overconstrained",
-    ConstraintNotSatisfiedError: "scan.camera.overconstrained",
-    SecurityError: "scan.camera.secureContext",
-    AbortError: "scan.camera.aborted",
-    UnknownError: "scan.camera.deviceError",
-  };
-  return { key: keyByName[name] ?? "scan.camera.startFailed", name };
-}
 
 function formatBirthDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-");
@@ -584,7 +564,7 @@ export function ScanPage() {
         }
 
         if (!disposed) {
-          const errorDetails = getCameraError(lastError);
+          const errorDetails = getCameraErrorDetails(lastError);
           setCameraError({
             message: t(errorDetails.key),
             name: errorDetails.name,
@@ -647,7 +627,7 @@ export function ScanPage() {
       stream?.getTracks().forEach((track) => track.stop());
       testStreamRef.current = null;
       if (testVideoRef.current) testVideoRef.current.srcObject = null;
-      const details = getCameraError(error);
+      const details = getCameraErrorDetails(error);
       setCameraTestResult({
         success: false,
         message: `${t(details.key)} (${details.name})`,
