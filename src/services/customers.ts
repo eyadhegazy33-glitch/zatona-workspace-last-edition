@@ -129,6 +129,8 @@ export async function getCustomers(input: {
   studentTypeId: string;
   sort: CustomerSort;
   ascending: boolean;
+  fromDate?: string;
+  toDate?: string;
   page: number;
   pageSize?: number;
 }): Promise<CustomerPage> {
@@ -151,9 +153,23 @@ export async function getCustomers(input: {
   const search = input.search.trim();
   if (search) {
     const term = search.replace(/[\\%_,()."]/g, "\\$&");
-    query = query.or(
-      `full_name.ilike.%${term}%,code.ilike.%${term}%,phone.ilike.%${term}%`,
-    );
+    const clauses = [
+      `full_name.ilike.%${term}%`,
+      `code.ilike.%${term}%`,
+      `phone.ilike.%${term}%`,
+    ];
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search)) {
+      clauses.push(`id.eq.${search}`);
+    }
+    query = query.or(clauses.join(","));
+  }
+  if (input.fromDate) {
+    query = query.gte("created_at", new Date(`${input.fromDate}T00:00:00`).toISOString());
+  }
+  if (input.toDate) {
+    const endOfDay = new Date(`${input.toDate}T00:00:00`);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    query = query.lt("created_at", endOfDay.toISOString());
   }
 
   const { data, error, count } = await query;

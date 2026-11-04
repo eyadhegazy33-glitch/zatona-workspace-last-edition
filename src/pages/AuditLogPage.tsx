@@ -3,11 +3,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Search,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import {
   getAuditActions,
   getAuditUsers,
@@ -16,6 +16,7 @@ import {
   listAuditScans,
   type AuditFilters,
   type AuditLogRow,
+  type AuditSort,
   type AuditScanRow,
   type AuditUser,
 } from "../services/auditLog";
@@ -144,11 +145,15 @@ export function AuditLogPage() {
   const [searchFilter, setSearchFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [sort, setSort] = useState<AuditSort>("newest");
   const [actions, setActions] = useState<string[]>([]);
   const [users, setUsers] = useState<AuditUser[]>([]);
   const [resultFilter, setResultFilter] = useState("");
   const [scanFromDate, setScanFromDate] = useState("");
   const [scanToDate, setScanToDate] = useState("");
+  const [scanSearchFilter, setScanSearchFilter] = useState("");
+  const [scanQuerySearch, setScanQuerySearch] = useState("");
+  const [scanSort, setScanSort] = useState<AuditSort>("newest");
   const [days, setDays] = useState(7);
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<AuditLogRow[]>([]);
@@ -214,13 +219,21 @@ export function AuditLogPage() {
     return () => window.clearTimeout(timer);
   }, [entityFilter, fromDate, searchFilter, timeZone, toDate, userFilter]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setScanQuerySearch(scanSearchFilter.trim());
+      setPage(0);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [scanSearchFilter]);
+
   const loadData = useCallback(async () => {
     const currentRequest = ++requestId.current;
     setLoading(true);
     setError("");
     try {
       if (tab === "activity") {
-        const result = await listAuditLogs(filters, PAGE_SIZE, page * PAGE_SIZE);
+        const result = await listAuditLogs(filters, PAGE_SIZE, page * PAGE_SIZE, sort);
         if (requestId.current !== currentRequest) return;
         setRows(result.rows);
         setTotal(result.total_count);
@@ -241,6 +254,8 @@ export function AuditLogPage() {
             : null,
           PAGE_SIZE,
           page * PAGE_SIZE,
+          scanQuerySearch || null,
+          scanSort,
         );
         if (requestId.current !== currentRequest) return;
         setScans(result.rows);
@@ -261,7 +276,7 @@ export function AuditLogPage() {
     } finally {
       if (requestId.current === currentRequest) setLoading(false);
     }
-  }, [days, filters, page, resultFilter, scanFromDate, scanToDate, t, tab, timeZone]);
+  }, [days, filters, page, resultFilter, scanFromDate, scanQuerySearch, scanSort, scanToDate, sort, t, tab, timeZone]);
 
   useEffect(() => {
     void loadData();
@@ -306,6 +321,8 @@ export function AuditLogPage() {
             to,
             PAGE_SIZE,
             offset,
+            scanQuerySearch || null,
+            scanSort,
           );
           exportRows.push(...result.rows);
           if (exportRows.length >= result.total_count || result.rows.length < PAGE_SIZE) {
@@ -352,7 +369,7 @@ export function AuditLogPage() {
       };
       const exportRows: AuditLogRow[] = [];
       for (let offset = 0; offset < 5000; offset += PAGE_SIZE) {
-        const result = await listAuditLogs(currentFilters, PAGE_SIZE, offset);
+        const result = await listAuditLogs(currentFilters, PAGE_SIZE, offset, sort);
         exportRows.push(...result.rows);
         if (exportRows.length >= result.total_count || result.rows.length < PAGE_SIZE) {
           break;
@@ -483,7 +500,30 @@ export function AuditLogPage() {
       </nav>
 
       {tab === "activity" && (
-        <section className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 xl:grid-cols-6" aria-label={t("auditLog.filters.label")}>
+          <SearchFilterBar
+            className="mb-4 rounded-xl p-3"
+            onClear={() => {
+              setUserFilter("");
+              setEntityFilter("");
+              setSearchFilter("");
+              setFromDate("");
+              setToDate("");
+              setSort("newest");
+              setFilters({
+                userId: null,
+                action: null,
+                entity: null,
+                from: null,
+                to: null,
+                search: null,
+              });
+              setPage(0);
+            }}
+            onSearchChange={setSearchFilter}
+            search={searchFilter}
+            searchPlaceholder={t("auditLog.filters.search")}
+            ariaLabel={t("auditLog.filters.label")}
+          >
           <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
             {t("auditLog.filters.user")}
             <select className={`${inputClass} mt-1`} value={userFilter} onChange={(event) => setUserFilter(event.target.value)}>
@@ -510,18 +550,34 @@ export function AuditLogPage() {
             {t("auditLog.filters.to")}
             <input className={`${inputClass} mt-1`} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </label>
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {t("auditLog.filters.search")}
-            <span className="relative mt-1 block">
-              <Search className={`pointer-events-none absolute top-3 h-4 w-4 text-slate-400 ${isArabic ? "right-3" : "left-3"}`} aria-hidden="true" />
-              <input className={`${inputClass} ${isArabic ? "pr-9" : "pl-9"}`} value={searchFilter} onChange={(event) => setSearchFilter(event.target.value)} />
-            </span>
+          <label className="min-w-36 text-xs font-medium text-slate-600 dark:text-slate-300">
+            {t("auditLog.filters.sort")}
+            <select className={`${inputClass} mt-1`} onChange={(event) => { setSort(event.target.value as AuditSort); setPage(0); }} value={sort}>
+              <option value="newest">{t("common.sortNewest")}</option>
+              <option value="oldest">{t("common.sortOldest")}</option>
+              <option value="name">{t("common.sortAlphabetically")}</option>
+            </select>
           </label>
-        </section>
+        </SearchFilterBar>
       )}
 
       {tab === "scans" && (
-        <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 xl:grid-cols-3">
+        <SearchFilterBar
+          ariaLabel={t("auditLog.scans.filtersLabel")}
+          className="mb-4 rounded-xl p-3"
+          onClear={() => {
+            setResultFilter("");
+            setScanFromDate("");
+            setScanToDate("");
+            setScanSearchFilter("");
+            setScanQuerySearch("");
+            setScanSort("newest");
+            setPage(0);
+          }}
+          onSearchChange={setScanSearchFilter}
+          search={scanSearchFilter}
+          searchPlaceholder={t("auditLog.scans.search")}
+        >
           <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
             {t("auditLog.scans.result")}
             <select className={`${inputClass} mt-1`} value={resultFilter} onChange={(event) => { setResultFilter(event.target.value); setPage(0); }}>
@@ -555,12 +611,20 @@ export function AuditLogPage() {
               }}
             />
           </label>
+          <label className="min-w-36 text-xs font-medium text-slate-600 dark:text-slate-300">
+            {t("auditLog.filters.sort")}
+            <select className={`${inputClass} mt-1`} onChange={(event) => { setScanSort(event.target.value as AuditSort); setPage(0); }} value={scanSort}>
+              <option value="newest">{t("common.sortNewest")}</option>
+              <option value="oldest">{t("common.sortOldest")}</option>
+              <option value="name">{t("common.sortAlphabetically")}</option>
+            </select>
+          </label>
           {scanFromDate && scanToDate && scanFromDate > scanToDate && (
-            <p className="text-sm text-red-700 dark:text-red-300 sm:col-span-2 xl:col-span-3" role="alert">
+            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
               {t("auditLog.scans.invalidRange")}
             </p>
           )}
-        </div>
+        </SearchFilterBar>
       )}
 
       {tab === "suspicious" && (

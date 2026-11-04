@@ -4,12 +4,12 @@ import {
   LoaderCircle,
   Plus,
   Printer,
-  Search,
   Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import { useAuth } from "../hooks/useAuth";
 import {
   getCustomers,
@@ -43,6 +43,8 @@ export function CustomersPage() {
   const [studentTypeFilter, setStudentTypeFilter] = useState("");
   const [sort, setSort] = useState<CustomerSort>("created_at");
   const [ascending, setAscending] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -86,6 +88,8 @@ export function CustomersPage() {
         studentTypeId: studentTypeFilter,
         sort,
         ascending,
+        fromDate,
+        toDate,
         page,
         pageSize,
       });
@@ -96,7 +100,7 @@ export function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [ascending, page, querySearch, sort, statusFilter, studentTypeFilter]);
+  }, [ascending, fromDate, page, querySearch, sort, statusFilter, studentTypeFilter, toDate]);
 
   useEffect(() => {
     void refresh();
@@ -174,68 +178,40 @@ export function CustomersPage() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_12rem_14rem_12rem_auto]">
-        <label className="relative">
-          <span className="sr-only">{t("customers.filters.search")}</span>
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-slate-400"
-            size={17}
-          />
-          <input
-            className={`${inputClassName} ps-10`}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("customers.filters.search")}
-            type="search"
-            value={search}
-          />
-        </label>
-        <label>
+      <SearchFilterBar
+        className="mt-6"
+        onClear={() => {
+          setSearch("");
+          setQuerySearch("");
+          setStatusFilter("");
+          setStudentTypeFilter("");
+          setSort("created_at");
+          setAscending(false);
+          setFromDate("");
+          setToDate("");
+          setPage(0);
+        }}
+        onSearchChange={(value) => { setSearch(value); setPage(0); }}
+        search={search}
+        searchPlaceholder={t("customers.filters.search")}
+      >
+        <label className="min-w-36">
           <span className="sr-only">{t("customers.filters.status")}</span>
-          <select
-            className={inputClassName}
-            onChange={(event) => {
-              setStatusFilter(event.target.value as CustomerStatus | "");
-              setPage(0);
-            }}
-            value={statusFilter}
-          >
+          <select className={inputClassName} onChange={(event) => { setStatusFilter(event.target.value as CustomerStatus | ""); setPage(0); }} value={statusFilter}>
             <option value="">{t("customers.filters.allStatuses")}</option>
-            {(["active", "blocked", "expired"] as const).map((status) => (
-              <option key={status} value={status}>
-                {t(`customers.status.${status}`)}
-              </option>
-            ))}
+            {(["active", "blocked", "expired"] as const).map((status) => <option key={status} value={status}>{t(`customers.status.${status}`)}</option>)}
           </select>
         </label>
-        <label>
+        <label className="min-w-36">
           <span className="sr-only">{t("customers.filters.studentType")}</span>
-          <select
-            className={inputClassName}
-            onChange={(event) => {
-              setStudentTypeFilter(event.target.value);
-              setPage(0);
-            }}
-            value={studentTypeFilter}
-          >
+          <select className={inputClassName} onChange={(event) => { setStudentTypeFilter(event.target.value); setPage(0); }} value={studentTypeFilter}>
             <option value="">{t("customers.filters.allStudentTypes")}</option>
-            {studentTypes.map((studentType) => (
-              <option key={studentType.id} value={studentType.id}>
-                {getStudentTypeName(studentType, i18n.language)}
-              </option>
-            ))}
+            {studentTypes.map((studentType) => <option key={studentType.id} value={studentType.id}>{getStudentTypeName(studentType, i18n.language)}</option>)}
           </select>
         </label>
-        <label>
+        <label className="min-w-36">
           <span className="sr-only">{t("customers.filters.sort")}</span>
-          <select
-            className={inputClassName}
-            onChange={(event) => {
-              setSort(event.target.value as CustomerSort);
-              setPage(0);
-            }}
-            value={sort}
-          >
+          <select className={inputClassName} onChange={(event) => { setSort(event.target.value as CustomerSort); setPage(0); }} value={sort}>
             <option value="created_at">{t("customers.sort.created")}</option>
             <option value="first_name">{t("customers.sort.name")}</option>
             <option value="code">{t("customers.sort.code")}</option>
@@ -243,19 +219,22 @@ export function CustomersPage() {
           </select>
         </label>
         <button
-          aria-label={t(
-            ascending ? "customers.sort.descending" : "customers.sort.ascending",
-          )}
-          className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          onClick={() => {
-            setAscending((value) => !value);
-            setPage(0);
-          }}
+          aria-label={t(ascending ? "customers.sort.descending" : "customers.sort.ascending")}
+          className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          onClick={() => { setAscending((value) => !value); setPage(0); }}
           type="button"
         >
           {t(ascending ? "customers.sort.ascending" : "customers.sort.descending")}
         </button>
-      </div>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.fromDate")}</span>
+          <input aria-label={t("common.fromDate")} className={inputClassName} onChange={(event) => { setFromDate(event.target.value); setPage(0); }} type="date" value={fromDate} />
+        </label>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.toDate")}</span>
+          <input aria-label={t("common.toDate")} className={inputClassName} onChange={(event) => { setToDate(event.target.value); setPage(0); }} type="date" value={toDate} />
+        </label>
+      </SearchFilterBar>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">

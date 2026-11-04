@@ -588,7 +588,7 @@ function CustomerCheckoutPanel({ customerId, onClose }: Props) {
                   <span className="mb-1 block">{t("customerCheckout.note")}</span>
                   <textarea className="min-h-24 w-full rounded-xl border border-slate-300 bg-white p-3 dark:border-slate-700 dark:bg-slate-950" maxLength={300} onChange={(event) => setNote(event.target.value)} value={note} />
                 </label>
-                <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-800">
+                <div aria-live="polite" className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800">
                   <span className="font-semibold text-ink dark:text-white">{t("customerCheckout.total")}</span>
                   <strong className="text-2xl text-ink dark:text-white">{formatMoney(total)}</strong>
                 </div>

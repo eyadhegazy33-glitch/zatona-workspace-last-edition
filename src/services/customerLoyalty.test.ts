@@ -87,11 +87,56 @@ describe("customer loyalty adjustments", () => {
     });
   });
 
+  it("parses server-calculated reward eligibility and inventory availability", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        customer: { id: "fake-customer-id", code: "TEST-001", name: "Test Student" },
+        points: 100,
+        rewards: [{
+          id: "fake-reward-id",
+          name_en: "Test reward",
+          name_ar: "مكافأة تجريبية",
+          description_en: "",
+          description_ar: "",
+          points_cost: 25,
+          stock_remaining: null,
+          is_active: true,
+          sort_order: 0,
+          starts_at: null,
+          ends_at: null,
+          minimum_checkins: 2,
+          customer_checkins: 1,
+          inventory_item_id: "inventory-id",
+          inventory_item_name: "Coffee",
+          inventory_unit: "g",
+          inventory_quantity: 10,
+          inventory_remaining: 5,
+          can_redeem: false,
+          availability_reason: "visits_required",
+        }],
+        history: [],
+        redemptions: [],
+      },
+      error: null,
+    });
+
+    const result = await getCustomerLoyaltyPortal("a".repeat(64));
+
+    expect(result.rewards[0]).toMatchObject({
+      can_redeem: false,
+      availability_reason: "visits_required",
+      minimum_checkins: 2,
+      inventory_quantity: 10,
+      inventory_remaining: 5,
+    });
+  });
+
   it("parses pending redemption customer first names from the staff response", async () => {
     rpcMock.mockResolvedValue({
       data: {
         points_per_currency_unit: 1,
         rewards: [],
+        inventory_items: [],
         redemptions: [{
           id: "fake-redemption-id",
           customer_id: "fake-customer-id",
@@ -105,6 +150,10 @@ describe("customer loyalty adjustments", () => {
           status: "requested",
           requested_at: "2026-01-01T12:00:00Z",
           resolution_reason: null,
+          reserved_inventory_item_id: null,
+          reserved_inventory_item_name: null,
+          reserved_inventory_quantity: null,
+          reserved_inventory_unit: null,
         }],
       },
       error: null,
@@ -123,6 +172,7 @@ describe("customer loyalty adjustments", () => {
       data: {
         points_per_currency_unit: 1,
         rewards: [],
+        inventory_items: [],
         redemptions: [{
           id: "fake-redemption-id",
           customer_id: "fake-customer-id",
@@ -135,6 +185,10 @@ describe("customer loyalty adjustments", () => {
           status: "requested",
           requested_at: "2026-01-01T12:00:00Z",
           resolution_reason: null,
+          reserved_inventory_item_id: null,
+          reserved_inventory_item_name: null,
+          reserved_inventory_quantity: null,
+          reserved_inventory_unit: null,
         }],
       },
       error: null,

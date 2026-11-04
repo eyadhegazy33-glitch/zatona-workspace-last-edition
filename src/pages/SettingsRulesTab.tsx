@@ -364,7 +364,11 @@ export function SettingsRulesTab() {
                 role="switch"
                 type="checkbox"
               />
-              <span className="relative mt-2 inline-flex h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand after:absolute after:start-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5" />
+              <label
+                aria-hidden="true"
+                className="relative mt-2 inline-flex h-6 w-11 cursor-pointer rounded-full bg-slate-300 transition peer-checked:bg-brand peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand after:absolute after:start-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5"
+                htmlFor="feeRepeats"
+              />
             </RulesField>
             <RulesField
               error={fieldError("timerRestartOn")}
@@ -496,7 +500,11 @@ export function SettingsRulesTab() {
                 role="switch"
                 type="checkbox"
               />
-              <span className="relative mt-2 inline-flex h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand after:absolute after:start-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5" />
+              <label
+                aria-hidden="true"
+                className="relative mt-2 inline-flex h-6 w-11 cursor-pointer rounded-full bg-slate-300 transition peer-checked:bg-brand peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand after:absolute after:start-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5"
+                htmlFor="requireOpenShift"
+              />
             </RulesField>
             <RulesField
               error={fieldError("cashDifferenceAlertAmount")}

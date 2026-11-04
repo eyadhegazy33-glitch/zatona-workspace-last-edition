@@ -5,7 +5,6 @@ import {
   LoaderCircle,
   Mail,
   Pencil,
-  Search,
   Shield,
   Trash2,
   UserRoundCheck,
@@ -21,6 +20,7 @@ import {
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import { useAuth } from "../hooks/useAuth";
 import {
   getEmployees,
@@ -29,6 +29,7 @@ import {
   softDeleteEmployee,
   updateEmployee,
   type Employee,
+  type EmployeeSort,
 } from "../services/employees";
 import { getAllRoles, type RegistrableRole } from "../services/roles";
 
@@ -66,6 +67,10 @@ export function EmployeesPage() {
   const [querySearch, setQuerySearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sort, setSort] = useState<EmployeeSort>("updated_at");
+  const [ascending, setAscending] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -120,6 +125,10 @@ export function EmployeesPage() {
         search: querySearch,
         roleId: roleFilter,
         status: statusFilter,
+        sort,
+        ascending,
+        fromDate,
+        toDate,
         page,
         pageSize,
       });
@@ -130,7 +139,7 @@ export function EmployeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, querySearch, roleFilter, statusFilter]);
+  }, [ascending, fromDate, page, querySearch, roleFilter, sort, statusFilter, toDate]);
 
   useEffect(() => {
     void refresh();
@@ -259,58 +268,64 @@ export function EmployeesPage() {
         </p>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_15rem_13rem]">
-        <label className="relative block">
-          <span className="sr-only">{t("employees.search")}</span>
-          <Search
-            aria-hidden="true"
-            className="absolute top-1/2 -translate-y-1/2 text-slate-400"
-            size={17}
-            style={{ [isRtl ? "right" : "left"]: "0.85rem" }}
-          />
-          <input
-            className={`${inputClassName} mt-0 py-2.5`}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("employees.search")}
-            type="search"
-            value={search}
-            style={{ [isRtl ? "paddingRight" : "paddingLeft"]: "2.5rem" }}
-          />
-        </label>
-        <label>
+      <SearchFilterBar
+        className="mt-6"
+        onClear={() => {
+          setSearch("");
+          setQuerySearch("");
+          setRoleFilter("");
+          setStatusFilter("");
+          setSort("updated_at");
+          setAscending(false);
+          setFromDate("");
+          setToDate("");
+          setPage(0);
+        }}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(0);
+        }}
+        search={search}
+        searchPlaceholder={t("employees.search")}
+      >
+        <label className="min-w-36">
           <span className="sr-only">{t("employees.filterRole")}</span>
-          <select
-            className={`${inputClassName} mt-0`}
-            onChange={(event) => {
-              setRoleFilter(event.target.value);
-              setPage(0);
-            }}
-            value={roleFilter}
-          >
+          <select className={`${inputClassName} mt-0 min-h-11`} onChange={(event) => { setRoleFilter(event.target.value); setPage(0); }} value={roleFilter}>
             <option value="">{t("employees.allRoles")}</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
+            {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
           </select>
         </label>
-        <label>
+        <label className="min-w-36">
           <span className="sr-only">{t("employees.filterStatus")}</span>
-          <select
-            className={`${inputClassName} mt-0`}
-            onChange={(event) => {
-              setStatusFilter(event.target.value);
-              setPage(0);
-            }}
-            value={statusFilter}
-          >
+          <select className={`${inputClassName} mt-0 min-h-11`} onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }} value={statusFilter}>
             <option value="">{t("employees.allStatuses")}</option>
             <option value="active">{t("employees.status.active")}</option>
             <option value="suspended">{t("employees.status.suspended")}</option>
           </select>
         </label>
-      </div>
+        <label className="min-w-36">
+          <span className="sr-only">{t("common.sort")}</span>
+          <select className={`${inputClassName} mt-0 min-h-11`} onChange={(event) => {
+            const value = event.target.value;
+            setSort(value === "name" ? "first_name" : value === "updated" ? "updated_at" : "created_at");
+            setAscending(value === "name" || value === "oldest");
+            setPage(0);
+          }} value={sort === "first_name" ? "name" : sort === "updated_at" ? "updated" : ascending ? "oldest" : "newest"}>
+            <option value="name">{t("common.sortAlphabetically")}</option>
+            <option value="newest">{t("common.sortNewest")}</option>
+            <option value="oldest">{t("common.sortOldest")}</option>
+            <option value="updated">{t("employees.sortUpdated")}</option>
+          </select>
+        </label>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.fromDate")}</span>
+          <input aria-label={t("common.fromDate")} className={`${inputClassName} mt-0 min-h-11`} onChange={(event) => { setFromDate(event.target.value); setPage(0); }} type="date" value={fromDate} />
+        </label>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.toDate")}</span>
+          <input aria-label={t("common.toDate")} className={`${inputClassName} mt-0 min-h-11`} onChange={(event) => { setToDate(event.target.value); setPage(0); }} type="date" value={toDate} />
+        </label>
+      </SearchFilterBar>
 
       {loadError && (
         <p

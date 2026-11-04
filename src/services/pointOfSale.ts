@@ -169,6 +169,11 @@ export type CheckoutTicket = {
   server_now: string;
 };
 
+export type CheckoutQuote = {
+  currency: string;
+  total: number;
+};
+
 function record(value: Json | undefined): Record<string, Json | undefined> {
   if (!value || Array.isArray(value) || typeof value !== "object") {
     throw new Error("Point-of-sale response was invalid.");
@@ -814,4 +819,18 @@ export async function checkoutVisit(
   });
   if (error) throw error;
   return mapCheckoutTicket(data);
+}
+
+export async function getCheckoutQuote(
+  checkinId: number,
+): Promise<CheckoutQuote> {
+  const { data, error } = await getSupabaseClient().rpc("get_checkout_quote", {
+    p_checkin: checkinId,
+  });
+  if (error) throw error;
+  const row = record(data);
+  return {
+    currency: requiredString(row, "currency"),
+    total: requiredNumber(row, "total"),
+  };
 }

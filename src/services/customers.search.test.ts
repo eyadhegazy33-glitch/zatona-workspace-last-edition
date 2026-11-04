@@ -62,4 +62,21 @@ describe("customer search query", () => {
     ]);
     expect(queryCalls).toContainEqual(["range", 50, 74]);
   });
+
+  it("supports exact customer ID search without changing normal search behavior", async () => {
+    const customerId = "123e4567-e89b-42d3-a456-426614174000";
+    await getCustomers({
+      search: customerId,
+      status: "",
+      studentTypeId: "",
+      sort: "created_at",
+      ascending: false,
+      page: 0,
+    });
+
+    expect(queryCalls).toContainEqual([
+      "or",
+      `full_name.ilike.%${customerId}%,code.ilike.%${customerId}%,phone.ilike.%${customerId}%,id.eq.${customerId}`,
+    ]);
+  });
 });

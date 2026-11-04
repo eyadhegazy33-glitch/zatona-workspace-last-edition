@@ -140,7 +140,7 @@ export type Database = {
         {
           id: string;
           customer_id: string;
-          resource_id: string;
+          resource_id: string | null;
           starts_at: string;
           ends_at: string;
           people: number;
@@ -155,7 +155,7 @@ export type Database = {
         {
           id?: string;
           customer_id: string;
-          resource_id: string;
+          resource_id?: string | null;
           starts_at: string;
           ends_at: string;
           people?: number;
@@ -170,7 +170,7 @@ export type Database = {
         {
           id?: string;
           customer_id?: string;
-          resource_id?: string;
+          resource_id?: string | null;
           starts_at?: string;
           ends_at?: string;
           people?: number;
@@ -940,27 +940,91 @@ export type Database = {
           id: number;
           item_id: string;
           change: number;
+          qty_before: number;
           qty_after: number;
           reason: string;
+          notes: string | null;
           created_by: string | null;
           created_at: string;
+          order_id: string | null;
         },
         {
           id?: never;
           item_id: string;
           change: number;
+          qty_before: number;
           qty_after: number;
           reason: string;
+          notes?: string | null;
           created_by?: string | null;
           created_at?: string;
+          order_id?: string | null;
         },
         {
           id?: never;
           item_id?: string;
           change?: number;
+          qty_before?: number;
           qty_after?: number;
           reason?: string;
+          notes?: string | null;
           created_by?: string | null;
+          created_at?: string;
+          order_id?: string | null;
+        }
+      >;
+      menu_item_recipes: Table<
+        {
+          id: string;
+          product_id: string;
+          instructions: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        },
+        {
+          id?: string;
+          product_id: string;
+          instructions?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        },
+        {
+          id?: string;
+          product_id?: string;
+          instructions?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      menu_item_recipe_ingredients: Table<
+        {
+          id: string;
+          recipe_id: string;
+          item_id: string;
+          quantity: number;
+          unit: "ml" | "L" | "g" | "kg" | "piece";
+          created_at: string;
+        },
+        {
+          id?: string;
+          recipe_id: string;
+          item_id: string;
+          quantity: number;
+          unit: "ml" | "L" | "g" | "kg" | "piece";
+          created_at?: string;
+        },
+        {
+          id?: string;
+          recipe_id?: string;
+          item_id?: string;
+          quantity?: number;
+          unit?: "ml" | "L" | "g" | "kg" | "piece";
           created_at?: string;
         }
       >;
@@ -1316,11 +1380,37 @@ export type Database = {
         };
         Returns: Json;
       };
+      list_audit_logs_sorted: {
+        Args: {
+          p_user?: string | null;
+          p_action?: string | null;
+          p_entity?: string | null;
+          p_from?: string | null;
+          p_to?: string | null;
+          p_search?: string | null;
+          p_sort?: string;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
+      };
       list_audit_scans: {
         Args: {
           p_result?: string | null;
           p_from?: string | null;
           p_to?: string | null;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
+      };
+      list_audit_scans_sorted: {
+        Args: {
+          p_result?: string | null;
+          p_from?: string | null;
+          p_to?: string | null;
+          p_search?: string | null;
+          p_sort?: string;
           p_limit?: number;
           p_offset?: number;
         };
@@ -1407,10 +1497,10 @@ export type Database = {
           customer_id: string;
           customer_name: string;
           customer_code: string;
-          resource_id: string;
-          resource_name: string;
-          resource_type: string;
-          resource_capacity: number;
+          resource_id: string | null;
+          resource_name: string | null;
+          resource_type: string | null;
+          resource_capacity: number | null;
           starts_at: string;
           ends_at: string;
           people: number;
@@ -1496,7 +1586,12 @@ export type Database = {
         Returns: Database["public"]["Tables"]["inventory_items"]["Row"];
       };
       adjust_stock: {
-        Args: { p_item: string; p_change: number; p_reason: string };
+        Args: {
+          p_item: string;
+          p_change: number;
+          p_reason: string;
+          p_notes?: string | null;
+        };
         Returns: number;
       };
       list_inventory_movements: {
@@ -1510,6 +1605,41 @@ export type Database = {
           created_by: string | null;
           created_by_name: string | null;
         }[];
+      };
+      list_inventory_movements_detailed: {
+        Args: { p_item: string };
+        Returns: {
+          id: number;
+          created_at: string;
+          change: number;
+          qty_before: number;
+          qty_after: number;
+          reason: string;
+          notes: string | null;
+          created_by: string | null;
+          created_by_name: string | null;
+          order_id: string | null;
+        }[];
+      };
+      save_menu_item_recipe: {
+        Args: {
+          p_product: string;
+          p_instructions: string | null;
+          p_ingredients: Json;
+        };
+        Returns: string;
+      };
+      delete_menu_item_recipe: {
+        Args: { p_product: string };
+        Returns: undefined;
+      };
+      set_inventory_recipe_requirement: {
+        Args: { p_required: boolean };
+        Returns: undefined;
+      };
+      get_inventory_recipe_requirement: {
+        Args: Record<string, never>;
+        Returns: boolean;
       };
       create_role: {
         Args: { p_name: string; p_is_registrable: boolean };
@@ -1707,6 +1837,10 @@ export type Database = {
       };
       checkout_visit: {
         Args: { p_checkin: number; p_payment_method: string };
+        Returns: Json;
+      };
+      get_checkout_quote: {
+        Args: { p_checkin: number };
         Returns: Json;
       };
       collect_payment: {
@@ -2090,6 +2224,25 @@ export type Database = {
           p_stock_remaining: number | null;
           p_is_active: boolean;
           p_sort_order: number;
+        };
+        Returns: string;
+      };
+      save_loyalty_reward_config: {
+        Args: {
+          p_id: string | null;
+          p_name_en: string;
+          p_name_ar: string;
+          p_description_en: string;
+          p_description_ar: string;
+          p_points_cost: number;
+          p_stock_remaining: number | null;
+          p_is_active: boolean;
+          p_sort_order: number;
+          p_starts_at: string | null;
+          p_ends_at: string | null;
+          p_minimum_checkins: number;
+          p_inventory_item: string | null;
+          p_inventory_quantity: number | null;
         };
         Returns: string;
       };

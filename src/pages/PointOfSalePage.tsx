@@ -68,6 +68,8 @@ function errorKey(cause: unknown): string {
   if (message.includes("order must be served")) return "pos.errors.orderMustBeServed";
   if (message.includes("invalid order status transition")) return "pos.errors.invalidStatusTransition";
   if (message.includes("active menu item")) return "pos.errors.menuItemUnavailable";
+  if (message.includes("insufficient inventory")) return "pos.errors.insufficientInventory";
+  if (message.includes("menu item has no inventory recipe")) return "pos.errors.recipeMissing";
   if (message.includes("shift already open")) return "pos.errors.shiftAlreadyOpen";
   if (message.includes("choose assigned shift")) return "pos.errors.chooseScheduledShift";
   if (message.includes("shift is not assigned")) return "pos.errors.shiftNotAssigned";

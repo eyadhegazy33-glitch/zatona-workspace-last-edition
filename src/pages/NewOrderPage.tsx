@@ -86,6 +86,12 @@ function getErrorKey(cause: unknown): string {
   if (message.includes("active menu item") || message.includes("not available")) {
     return "ordersNew.errors.itemUnavailable";
   }
+  if (message.includes("insufficient inventory")) {
+    return "ordersNew.errors.insufficientInventory";
+  }
+  if (message.includes("menu item has no inventory recipe")) {
+    return "ordersNew.errors.recipeMissing";
+  }
   if (message.includes("discount not allowed") || message.includes("not allowed")) {
     return "ordersNew.errors.notAllowed";
   }

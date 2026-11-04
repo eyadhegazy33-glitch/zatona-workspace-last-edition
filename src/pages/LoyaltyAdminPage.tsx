@@ -29,7 +29,24 @@ const rewardSchema = z.object({
   stockRemaining: z.number().int().nonnegative().nullable(),
   isActive: z.boolean(),
   sortOrder: z.coerce.number().int().min(-100000).max(100000),
-});
+  startsAt: z.string(),
+  endsAt: z.string(),
+  minimumCheckins: z.coerce.number().int().min(0).max(1000000),
+  inventoryItemId: z.string(),
+  inventoryQuantity: z.number().nullable(),
+}).refine(
+  (value) => !value.startsAt || !value.endsAt || value.startsAt <= value.endsAt,
+  { path: ["endsAt"], message: "invalid date range" },
+).refine(
+  (value) => Boolean(value.inventoryItemId) === (value.inventoryQuantity !== null),
+  { path: ["inventoryItemId"], message: "inventory item and amount must be configured together" },
+).refine(
+  (value) => value.inventoryQuantity === null ||
+    (Number.isFinite(value.inventoryQuantity) &&
+      value.inventoryQuantity > 0 &&
+      Math.abs(value.inventoryQuantity * 10000 - Math.round(value.inventoryQuantity * 10000)) < 1e-7),
+  { path: ["inventoryQuantity"], message: "invalid inventory amount" },
+);
 
 const adjustmentSchema = z.object({
   customerCode: z.string().trim().min(1).max(40),
@@ -54,6 +71,11 @@ const emptyReward: RewardValues = {
   stockRemaining: null,
   isActive: true,
   sortOrder: 0,
+  startsAt: "",
+  endsAt: "",
+  minimumCheckins: 0,
+  inventoryItemId: "",
+  inventoryQuantity: null,
 };
 
 export function LoyaltyAdminPage() {
@@ -81,6 +103,7 @@ export function LoyaltyAdminPage() {
   const [busyRedemption, setBusyRedemption] = useState<string | null>(null);
   const [editingReward, setEditingReward] = useState<string | null>(null);
   const [stockInput, setStockInput] = useState("");
+  const [inventoryQuantityInput, setInventoryQuantityInput] = useState("");
   const [resolutionReasons, setResolutionReasons] = useState<Record<string, string>>({});
 
   const {
@@ -153,6 +176,9 @@ export function LoyaltyAdminPage() {
     const parsed = rewardSchema.safeParse({
       ...values,
       stockRemaining: stockInput.trim() === "" ? null : Number(stockInput),
+      inventoryQuantity: inventoryQuantityInput.trim() === ""
+        ? null
+        : Number(inventoryQuantityInput),
     });
     if (!parsed.success) {
       setActionError(true);
@@ -164,9 +190,13 @@ export function LoyaltyAdminPage() {
       await saveLoyaltyReward({
         id: editingReward,
         ...parsed.data,
+        startsAt: parsed.data.startsAt || null,
+        endsAt: parsed.data.endsAt || null,
+        inventoryItemId: parsed.data.inventoryItemId || null,
       });
       setEditingReward(null);
       setStockInput("");
+      setInventoryQuantityInput("");
       resetReward(emptyReward);
       await refresh();
     } catch {
@@ -179,6 +209,9 @@ export function LoyaltyAdminPage() {
   const handleEditReward = (reward: LoyaltyReward) => {
     setEditingReward(reward.id);
     setStockInput(reward.stock_remaining === null ? "" : String(reward.stock_remaining));
+    setInventoryQuantityInput(
+      reward.inventory_quantity === null ? "" : String(reward.inventory_quantity),
+    );
     setRewardValue("nameEn", reward.name_en);
     setRewardValue("nameAr", reward.name_ar);
     setRewardValue("descriptionEn", reward.description_en);
@@ -186,6 +219,10 @@ export function LoyaltyAdminPage() {
     setRewardValue("pointsCost", reward.points_cost);
     setRewardValue("isActive", reward.is_active);
     setRewardValue("sortOrder", reward.sort_order);
+    setRewardValue("startsAt", reward.starts_at ?? "");
+    setRewardValue("endsAt", reward.ends_at ?? "");
+    setRewardValue("minimumCheckins", reward.minimum_checkins);
+    setRewardValue("inventoryItemId", reward.inventory_item_id ?? "");
   };
 
   const handleDeleteReward = async (reward: LoyaltyReward) => {
@@ -200,6 +237,7 @@ export function LoyaltyAdminPage() {
       if (editingReward === reward.id) {
         setEditingReward(null);
         setStockInput("");
+        setInventoryQuantityInput("");
         resetReward(emptyReward);
       }
       await refresh();
@@ -337,6 +375,7 @@ export function LoyaltyAdminPage() {
                 onClick={() => {
                   setEditingReward(null);
                   setStockInput("");
+                  setInventoryQuantityInput("");
                   resetReward(emptyReward);
                 }}
                 type="button"
@@ -378,6 +417,50 @@ export function LoyaltyAdminPage() {
                 <span className="mt-1 block text-xs text-slate-500">{t("loyaltyAdmin.reward.unlimitedHelp")}</span>
               </label>
             </div>
+            <p className="text-sm font-semibold text-ink dark:text-white">
+              {t("loyaltyAdmin.reward.conditionsTitle")}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={`block ${fieldLabelClass}`} htmlFor="reward-starts-at">
+                {t("loyaltyAdmin.reward.startsAt")}
+                <input className={inputClass} id="reward-starts-at" type="date" {...registerReward("startsAt")} />
+              </label>
+              <label className={`block ${fieldLabelClass}`} htmlFor="reward-ends-at">
+                {t("loyaltyAdmin.reward.endsAt")}
+                <input className={inputClass} id="reward-ends-at" type="date" {...registerReward("endsAt")} />
+                {rewardErrors.endsAt && <span className="mt-1 block text-xs text-red-600">{t("loyaltyAdmin.reward.invalidDateRange")}</span>}
+              </label>
+              <label className={`block ${fieldLabelClass}`} htmlFor="reward-minimum-checkins">
+                {t("loyaltyAdmin.reward.minimumCheckins")}
+                <input className={inputClass} id="reward-minimum-checkins" min="0" step="1" type="number" {...registerReward("minimumCheckins")} />
+              </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={`block ${fieldLabelClass}`} htmlFor="reward-inventory-item">
+                {t("loyaltyAdmin.reward.inventoryItem")}
+                <select className={inputClass} id="reward-inventory-item" {...registerReward("inventoryItemId")}>
+                  <option value="">{t("loyaltyAdmin.reward.noInventoryItem")}</option>
+                  {data.inventory_items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {item.qty.toLocaleString(isArabic ? "ar" : "en")} {item.unit}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={`block ${fieldLabelClass}`} htmlFor="reward-inventory-quantity">
+                {t("loyaltyAdmin.reward.inventoryQuantity")}
+                <input
+                  className={inputClass}
+                  id="reward-inventory-quantity"
+                  min="0.0001"
+                  onChange={(event) => setInventoryQuantityInput(event.target.value)}
+                  step="0.0001"
+                  type="number"
+                  value={inventoryQuantityInput}
+                />
+                <span className="mt-1 block text-xs text-slate-500">{t("loyaltyAdmin.reward.inventoryHelp")}</span>
+              </label>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={`block ${fieldLabelClass}`} htmlFor="reward-sort">
                 {t("loyaltyAdmin.reward.sortOrder")}
@@ -402,6 +485,23 @@ export function LoyaltyAdminPage() {
                   <div className="min-w-0">
                     <p className="truncate font-medium text-ink dark:text-white">{isArabic ? reward.name_ar : reward.name_en}</p>
                     <p className="text-xs text-slate-500">{t("loyaltyAdmin.reward.pointsCount", { count: reward.points_cost })} · {reward.is_active ? t("loyaltyAdmin.reward.enabled") : t("loyaltyAdmin.reward.disabled")}</p>
+                    {(reward.starts_at || reward.ends_at || reward.minimum_checkins > 0) && (
+                      <p className="text-xs text-slate-500">
+                        {reward.starts_at && `${t("loyaltyAdmin.reward.startsAt")}: ${reward.starts_at}`}
+                        {reward.starts_at && reward.ends_at ? " · " : ""}
+                        {reward.ends_at && `${t("loyaltyAdmin.reward.endsAt")}: ${reward.ends_at}`}
+                        {reward.minimum_checkins > 0 && ` · ${t("loyaltyAdmin.reward.minimumCheckinsCount", { count: reward.minimum_checkins })}`}
+                      </p>
+                    )}
+                    {reward.inventory_item_name && reward.inventory_quantity !== null && (
+                      <p className="text-xs text-slate-500">
+                        {t("loyaltyAdmin.reward.inventoryRequirement", {
+                          quantity: reward.inventory_quantity,
+                          item: reward.inventory_item_name,
+                          unit: reward.inventory_unit ?? "",
+                        })}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <button aria-label={t("loyaltyAdmin.reward.edit")} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold dark:border-slate-700" onClick={() => handleEditReward(reward)} type="button">

@@ -411,7 +411,7 @@ export function BookingsPage() {
     setSelectedBooking(null);
     setForm({
       customerId: booking.customer_id,
-      resourceId: booking.resource_id,
+      resourceId: booking.resource_id ?? "",
       date: localDateKey(new Date(booking.starts_at)),
       starts: `${String(new Date(booking.starts_at).getHours()).padStart(2, "0")}:${String(new Date(booking.starts_at).getMinutes()).padStart(2, "0")}`,
       ends: `${String(new Date(booking.ends_at).getHours()).padStart(2, "0")}:${String(new Date(booking.ends_at).getMinutes()).padStart(2, "0")}`,
@@ -628,7 +628,7 @@ export function BookingsPage() {
             <span className="min-w-0">{details}</span>
             <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-xs dark:bg-black/20">{t(`bookings.status.${booking.status}`)}</span>
           </span>
-          <span className="mt-1 flex items-center gap-1 text-xs"><MapPin size={13} />{booking.resource_name} · {booking.customer_code}</span>
+          <span className="mt-1 flex items-center gap-1 text-xs"><MapPin size={13} />{booking.resource_name ?? t("bookings.deletedResource")} · {booking.customer_code}</span>
         </button>
       );
     }
@@ -720,8 +720,10 @@ export function BookingsPage() {
         bookings.map((booking) => [
           booking.customer_name,
           booking.customer_code,
-          booking.resource_name,
-          t(`bookings.resourceTypes.${booking.resource_type}`),
+          booking.resource_name ?? t("bookings.deletedResource"),
+          booking.resource_type
+            ? t(`bookings.resourceTypes.${booking.resource_type}`)
+            : "",
           formatDate(new Date(booking.starts_at), { dateStyle: "short" }),
           formatTime(booking.starts_at),
           formatTime(booking.ends_at),
@@ -783,7 +785,7 @@ export function BookingsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-sm">
                 <thead><tr className="border-b border-slate-200 text-start text-slate-500 dark:border-slate-800"><th className="p-3 text-start">{t("bookings.customer")}</th><th className="p-3 text-start">{t("bookings.resource")}</th><th className="p-3 text-start">{t("bookings.dateTime")}</th><th className="p-3 text-end">{t("bookings.people")}</th><th className="p-3 text-end">{t("bookings.deposit")}</th><th className="p-3 text-start">{t("bookings.status.label")}</th></tr></thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{bookings.map((booking) => <tr className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 ${highlightedBookingId === booking.id ? "bg-red-50 ring-2 ring-inset ring-red-500 dark:bg-red-950/30" : ""}`} key={booking.id} onClick={() => { setSelectedBooking(booking); setStatusError(""); setCheckInResult(null); }}><td className="p-3"><span className="block font-semibold">{booking.customer_name}</span><span className="text-xs text-slate-500">{booking.customer_code}</span></td><td className="p-3">{booking.resource_name}</td><td className="p-3">{formatDate(new Date(booking.starts_at), { dateStyle: "medium" })}<span className="block text-xs text-slate-500">{formatTime(booking.starts_at)}–{formatTime(booking.ends_at)}</span></td><td className="p-3 text-end">{booking.people}</td><td className="p-3 text-end">{formatMoney(booking.deposit)}</td><td className="p-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${bookingStatusColor(booking.status)}`}>{t(`bookings.status.${booking.status}`)}</span></td></tr>)}</tbody>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{bookings.map((booking) => <tr className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 ${highlightedBookingId === booking.id ? "bg-red-50 ring-2 ring-inset ring-red-500 dark:bg-red-950/30" : ""}`} key={booking.id} onClick={() => { setSelectedBooking(booking); setStatusError(""); setCheckInResult(null); }}><td className="p-3"><span className="block font-semibold">{booking.customer_name}</span><span className="text-xs text-slate-500">{booking.customer_code}</span></td><td className="p-3">{booking.resource_name ?? t("bookings.deletedResource")}</td><td className="p-3">{formatDate(new Date(booking.starts_at), { dateStyle: "medium" })}<span className="block text-xs text-slate-500">{formatTime(booking.starts_at)}–{formatTime(booking.ends_at)}</span></td><td className="p-3 text-end">{booking.people}</td><td className="p-3 text-end">{formatMoney(booking.deposit)}</td><td className="p-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${bookingStatusColor(booking.status)}`}>{t(`bookings.status.${booking.status}`)}</span></td></tr>)}</tbody>
               </table>
             </div>
           )}
@@ -876,7 +878,7 @@ export function BookingsPage() {
           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${bookingStatusColor(selectedBooking.status)}`}>{t(`bookings.status.${selectedBooking.status}`)}</span>
           <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
             <div><dt className="text-slate-500">{t("bookings.customer")}</dt><dd className="mt-1 font-semibold">{selectedBooking.customer_name} · {selectedBooking.customer_code}</dd></div>
-            <div><dt className="text-slate-500">{t("bookings.resource")}</dt><dd className="mt-1 font-semibold">{selectedBooking.resource_name}</dd></div>
+            <div><dt className="text-slate-500">{t("bookings.resource")}</dt><dd className="mt-1 font-semibold">{selectedBooking.resource_name ?? t("bookings.deletedResource")}</dd></div>
             <div><dt className="text-slate-500">{t("bookings.time")}</dt><dd className="mt-1 font-semibold">{formatDate(new Date(selectedBooking.starts_at), { dateStyle: "medium" })}<br />{formatTime(selectedBooking.starts_at)}–{formatTime(selectedBooking.ends_at)}</dd></div>
             <div><dt className="text-slate-500">{t("bookings.people")}</dt><dd className="mt-1 font-semibold">{selectedBooking.people} / {selectedBooking.resource_capacity}</dd></div>
             <div><dt className="text-slate-500">{t("bookings.deposit")}</dt><dd className="mt-1 font-semibold">{formatMoney(selectedBooking.deposit)}</dd></div>

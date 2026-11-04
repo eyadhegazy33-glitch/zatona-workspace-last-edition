@@ -13,6 +13,27 @@ export type LoyaltyReward = {
   stock_remaining: number | null;
   is_active: boolean;
   sort_order: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  minimum_checkins: number;
+  inventory_item_id: string | null;
+  inventory_item_name: string | null;
+  inventory_unit: string | null;
+  inventory_quantity: number | null;
+};
+
+export type CustomerLoyaltyReward = LoyaltyReward & {
+  customer_checkins: number;
+  inventory_remaining: number | null;
+  can_redeem: boolean;
+  availability_reason: "available" | "not_started" | "expired" | "visits_required" | "out_of_stock" | "points_required";
+};
+
+export type LoyaltyInventoryItem = {
+  id: string;
+  name: string;
+  unit: string;
+  qty: number;
 };
 
 export type LoyaltyHistoryItem = {
@@ -35,7 +56,7 @@ export type LoyaltyRedemption = {
 export type CustomerLoyaltyPortalData = {
   customer: { id: string; code: string; name: string };
   points: number;
-  rewards: LoyaltyReward[];
+  rewards: CustomerLoyaltyReward[];
   history: LoyaltyHistoryItem[];
   redemptions: LoyaltyRedemption[];
 };
@@ -46,11 +67,15 @@ export type LoyaltyAdminRedemption = LoyaltyRedemption & {
   customer_name: string;
   customer_code: string;
   reward_id: string;
+  reserved_inventory_item_name: string | null;
+  reserved_inventory_quantity: number | null;
+  reserved_inventory_unit: string | null;
 };
 
 export type LoyaltyAdminData = {
   points_per_currency_unit: number;
   rewards: LoyaltyReward[];
+  inventory_items: LoyaltyInventoryItem[];
   redemptions: LoyaltyAdminRedemption[];
 };
 
@@ -82,6 +107,11 @@ function optionalNumber(value: Json | undefined, field: string): number | null {
   return requiredNumber(value, field);
 }
 
+function optionalString(value: Json | undefined, field: string): string | null {
+  if (value === null) return null;
+  return requiredString(value, field);
+}
+
 function parseReward(value: Json): LoyaltyReward {
   if (!isRecord(value)) throw new Error("Loyalty reward response was invalid.");
   return {
@@ -94,6 +124,45 @@ function parseReward(value: Json): LoyaltyReward {
     stock_remaining: optionalNumber(value.stock_remaining, "reward.stock_remaining"),
     is_active: value.is_active === true,
     sort_order: requiredNumber(value.sort_order, "reward.sort_order"),
+    starts_at: optionalString(value.starts_at, "reward.starts_at"),
+    ends_at: optionalString(value.ends_at, "reward.ends_at"),
+    minimum_checkins: requiredNumber(value.minimum_checkins, "reward.minimum_checkins"),
+    inventory_item_id: optionalString(value.inventory_item_id, "reward.inventory_item_id"),
+    inventory_item_name: optionalString(value.inventory_item_name, "reward.inventory_item_name"),
+    inventory_unit: optionalString(value.inventory_unit, "reward.inventory_unit"),
+    inventory_quantity: optionalNumber(value.inventory_quantity, "reward.inventory_quantity"),
+  };
+}
+
+function parseCustomerReward(value: Json): CustomerLoyaltyReward {
+  if (!isRecord(value)) throw new Error("Loyalty reward response was invalid.");
+  const reason = requiredString(value.availability_reason, "reward.availability_reason");
+  if (
+    reason !== "available" &&
+    reason !== "not_started" &&
+    reason !== "expired" &&
+    reason !== "visits_required" &&
+    reason !== "out_of_stock" &&
+    reason !== "points_required"
+  ) {
+    throw new Error("Loyalty reward availability was invalid.");
+  }
+  return {
+    ...parseReward(value),
+    customer_checkins: requiredNumber(value.customer_checkins, "reward.customer_checkins"),
+    inventory_remaining: optionalNumber(value.inventory_remaining, "reward.inventory_remaining"),
+    can_redeem: value.can_redeem === true,
+    availability_reason: reason,
+  };
+}
+
+function parseInventoryItem(value: Json): LoyaltyInventoryItem {
+  if (!isRecord(value)) throw new Error("Loyalty inventory item response was invalid.");
+  return {
+    id: requiredString(value.id, "inventory_item.id"),
+    name: requiredString(value.name, "inventory_item.name"),
+    unit: requiredString(value.unit, "inventory_item.unit"),
+    qty: requiredNumber(value.qty, "inventory_item.qty"),
   };
 }
 
@@ -199,7 +268,7 @@ export async function getCustomerLoyaltyPortal(
       name: requiredString(data.customer.name, "customer.name"),
     },
     points: requiredNumber(data.points, "points"),
-    rewards: parseArray(data.rewards, parseReward),
+    rewards: parseArray(data.rewards, parseCustomerReward),
     history: parseArray(data.history, parseHistory),
     redemptions: parseArray(data.redemptions, parseRedemption),
   };
@@ -237,6 +306,18 @@ export async function getLoyaltyAdminData(): Promise<LoyaltyAdminData> {
       customer_name: customerName,
       customer_code: requiredString(item.customer_code, "redemption.customer_code"),
       reward_id: requiredString(item.reward_id, "redemption.reward_id"),
+      reserved_inventory_item_name: optionalString(
+        item.reserved_inventory_item_name,
+        "redemption.reserved_inventory_item_name",
+      ),
+      reserved_inventory_quantity: optionalNumber(
+        item.reserved_inventory_quantity,
+        "redemption.reserved_inventory_quantity",
+      ),
+      reserved_inventory_unit: optionalString(
+        item.reserved_inventory_unit,
+        "redemption.reserved_inventory_unit",
+      ),
     };
   });
   return {
@@ -245,6 +326,7 @@ export async function getLoyaltyAdminData(): Promise<LoyaltyAdminData> {
       "points_per_currency_unit",
     ),
     rewards: parseArray(data.rewards, parseReward),
+    inventory_items: parseArray(data.inventory_items, parseInventoryItem),
     redemptions,
   };
 }
@@ -277,8 +359,13 @@ export async function saveLoyaltyReward(input: {
   stockRemaining: number | null;
   isActive: boolean;
   sortOrder: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  minimumCheckins: number;
+  inventoryItemId: string | null;
+  inventoryQuantity: number | null;
 }): Promise<void> {
-  const { error } = await getSupabaseClient().rpc("save_loyalty_reward", {
+  const { error } = await getSupabaseClient().rpc("save_loyalty_reward_config", {
     p_id: input.id,
     p_name_en: input.nameEn,
     p_name_ar: input.nameAr,
@@ -288,6 +375,11 @@ export async function saveLoyaltyReward(input: {
     p_stock_remaining: input.stockRemaining,
     p_is_active: input.isActive,
     p_sort_order: input.sortOrder,
+    p_starts_at: input.startsAt,
+    p_ends_at: input.endsAt,
+    p_minimum_checkins: input.minimumCheckins,
+    p_inventory_item: input.inventoryItemId,
+    p_inventory_quantity: input.inventoryQuantity,
   });
   if (error) throw error;
 }

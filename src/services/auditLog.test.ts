@@ -15,7 +15,7 @@ describe("listAuditScans", () => {
     rpcMock.mockReset();
   });
 
-  it("sends result and exclusive timestamp bounds to the paginated RPC", async () => {
+  it("sends result, date bounds, and pagination to the sorted RPC", async () => {
     rpcMock.mockResolvedValue({
       data: { total_count: 0, rows: [] },
       error: null,
@@ -29,12 +29,33 @@ describe("listAuditScans", () => {
       100,
     )).resolves.toEqual({ total_count: 0, rows: [] });
 
-    expect(rpcMock).toHaveBeenCalledWith("list_audit_scans", {
+    expect(rpcMock).toHaveBeenCalledWith("list_audit_scans_sorted", {
       p_result: "blocked",
       p_from: "2026-10-31T21:00:00.000Z",
       p_to: "2026-11-01T22:00:00.000Z",
+      p_search: null,
+      p_sort: "newest",
       p_limit: 50,
       p_offset: 100,
+    });
+  });
+
+  it("sends scan search and sort criteria to the server", async () => {
+    rpcMock.mockResolvedValue({
+      data: { total_count: 0, rows: [] },
+      error: null,
+    });
+
+    await listAuditScans(null, null, null, 50, 0, "employee", "name");
+
+    expect(rpcMock).toHaveBeenCalledWith("list_audit_scans_sorted", {
+      p_result: null,
+      p_from: null,
+      p_to: null,
+      p_search: "employee",
+      p_sort: "name",
+      p_limit: 50,
+      p_offset: 0,
     });
   });
 

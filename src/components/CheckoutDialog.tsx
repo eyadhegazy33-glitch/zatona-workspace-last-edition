@@ -1,9 +1,12 @@
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useBranding } from "../hooks/useBranding";
 import {
   checkoutVisit,
+  getCheckoutQuote,
+  type CheckoutQuote,
   type CheckoutTicket,
   type PosReceipt,
 } from "../services/pointOfSale";
@@ -34,6 +37,10 @@ export function CheckoutDialog({ checkinId, onClose, onComplete }: Props) {
   const { settings: branding } = useBranding();
   const [paymentMethod, setPaymentMethod] = useState<PosReceipt["payment_method"]>("cash");
   const [ticket, setTicket] = useState<CheckoutTicket | null>(null);
+  const [quote, setQuote] = useState<CheckoutQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(true);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteRequest, setQuoteRequest] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const locale = i18n.language.startsWith("ar") ? "ar-EG" : i18n.language;
@@ -42,6 +49,26 @@ export function CheckoutDialog({ checkinId, onClose, onComplete }: Props) {
     document.body.classList.remove("printing-order-ticket");
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setQuote(null);
+    setQuoteError("");
+    setQuoteLoading(true);
+    void getCheckoutQuote(checkinId)
+      .then((result) => {
+        if (!cancelled) setQuote(result);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setQuoteError(t(getErrorKey(cause)));
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkinId, quoteRequest, t]);
+
   const formatMoney = (amount: number, currency: string) =>
     new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
   const formatDate = (value: string) =>
@@ -49,10 +76,19 @@ export function CheckoutDialog({ checkinId, onClose, onComplete }: Props) {
       .format(new Date(value));
 
   const submit = async () => {
-    if (busy) return;
+    if (busy || !quote) return;
     setBusy(true);
     setError("");
     try {
+      const currentQuote = await getCheckoutQuote(checkinId);
+      if (
+        currentQuote.total !== quote.total ||
+        currentQuote.currency !== quote.currency
+      ) {
+        setQuote(currentQuote);
+        setError(t("checkout.errors.amountChanged"));
+        return;
+      }
       const result = await checkoutVisit(checkinId, paymentMethod);
       setTicket(result);
       onComplete(result);
@@ -132,6 +168,41 @@ export function CheckoutDialog({ checkinId, onClose, onComplete }: Props) {
                   <option value="other">{t("pos.payment.other")}</option>
                 </select>
               </label>
+              <div
+                aria-live="polite"
+                className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800"
+              >
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {t("checkout.amountDue")}
+                </span>
+                {quoteLoading ? (
+                  <LoaderCircle
+                    aria-label={t("checkout.loadingAmount")}
+                    className="animate-spin text-brand"
+                    size={20}
+                  />
+                ) : quote ? (
+                  <strong className="text-xl text-ink dark:text-white">
+                    {formatMoney(quote.total, quote.currency)}
+                  </strong>
+                ) : (
+                  <button
+                    className="text-sm font-semibold text-brand underline"
+                    onClick={() => setQuoteRequest((request) => request + 1)}
+                    type="button"
+                  >
+                    {t("checkout.retryAmount")}
+                  </button>
+                )}
+              </div>
+              {quoteError && (
+                <p
+                  className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  role="alert"
+                >
+                  {quoteError}
+                </p>
+              )}
               {error && (
                 <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">
                   {error}
@@ -148,7 +219,7 @@ export function CheckoutDialog({ checkinId, onClose, onComplete }: Props) {
                 </button>
                 <button
                   className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-white disabled:opacity-60"
-                  disabled={busy}
+                  disabled={busy || quoteLoading || !quote}
                   onClick={() => void submit()}
                   type="button"
                 >

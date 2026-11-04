@@ -181,6 +181,16 @@ export function LoyaltyRedemptionsPage() {
                       timeStyle: "short",
                     }).format(new Date(redemption.requested_at))}
                   </p>
+                  {redemption.reserved_inventory_item_name &&
+                    redemption.reserved_inventory_quantity !== null && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {t("loyaltyFulfillment.inventoryReserved", {
+                          quantity: redemption.reserved_inventory_quantity,
+                          item: redemption.reserved_inventory_item_name,
+                          unit: redemption.reserved_inventory_unit ?? "",
+                        })}
+                      </p>
+                    )}
                 </div>
                 <button
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-60"

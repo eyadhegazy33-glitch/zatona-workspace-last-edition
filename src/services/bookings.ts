@@ -34,10 +34,10 @@ export type Booking = {
   customer_id: string;
   customer_name: string;
   customer_code: string;
-  resource_id: string;
-  resource_name: string;
-  resource_type: string;
-  resource_capacity: number;
+  resource_id: string | null;
+  resource_name: string | null;
+  resource_type: string | null;
+  resource_capacity: number | null;
   starts_at: string;
   ends_at: string;
   people: number;

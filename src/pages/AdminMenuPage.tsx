@@ -6,13 +6,13 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
-  Search,
   Utensils,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import { useAuth } from "../hooks/useAuth";
 import {
   getMenuImageUrl,
@@ -114,6 +114,12 @@ export function AdminMenuPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [availabilityFilter, setAvailabilityFilter] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [sort, setSort] = useState<"name" | "newest" | "oldest" | "price-high" | "price-low">("name");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
   const [itemFile, setItemFile] = useState<File | null>(null);
@@ -139,23 +145,45 @@ export function AdminMenuPage() {
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
-    if (!term) return items;
-    return items.filter((item) =>
-      [
-        item.name_en,
-        item.name_ar,
-        item.description ?? "",
-        categories.find((category) => category.id === item.category_id)
-          ? isArabic
-            ? categories.find((category) => category.id === item.category_id)?.name_ar
-            : categories.find((category) => category.id === item.category_id)?.name_en
-          : "",
-      ]
-        .join(" ")
-        .toLocaleLowerCase()
-        .includes(term),
-    );
-  }, [categories, isArabic, items, search]);
+    const collator = new Intl.Collator(i18n.language, { sensitivity: "base" });
+    return items
+      .filter((item) => {
+        const category = categories.find((entry) => entry.id === item.category_id);
+        const matchesSearch = !term || [
+          item.id,
+          item.name_en,
+          item.name_ar,
+          item.description ?? "",
+          category ? (isArabic ? category.name_ar : category.name_en) : "",
+        ].join(" ").toLocaleLowerCase().includes(term);
+        const matchesFrom = !createdFrom ||
+          Date.parse(item.created_at) >= new Date(`${createdFrom}T00:00:00`).getTime();
+        const endOfDay = createdTo ? new Date(`${createdTo}T00:00:00`) : null;
+        endOfDay?.setDate(endOfDay.getDate() + 1);
+        const matchesTo = !createdTo ||
+          Date.parse(item.created_at) < (endOfDay?.getTime() ?? 0);
+        return matchesSearch &&
+          (!categoryFilter || item.category_id === categoryFilter) &&
+          (!availabilityFilter || (availabilityFilter === "available" ? item.available : !item.available)) &&
+          (!visibilityFilter || (visibilityFilter === "active" ? item.active : !item.active)) &&
+          matchesFrom &&
+          matchesTo;
+      })
+      .sort((left, right) => {
+        if (sort === "newest" || sort === "oldest") {
+          const direction = sort === "newest" ? -1 : 1;
+          return direction * (Date.parse(left.created_at) - Date.parse(right.created_at));
+        }
+        if (sort === "price-high" || sort === "price-low") {
+          const direction = sort === "price-high" ? -1 : 1;
+          return direction * (Number(left.price) - Number(right.price));
+        }
+        return collator.compare(
+          isArabic ? left.name_ar : left.name_en,
+          isArabic ? right.name_ar : right.name_en,
+        );
+      });
+  }, [availabilityFilter, categories, categoryFilter, createdFrom, createdTo, i18n.language, isArabic, items, search, sort, visibilityFilter]);
 
   const saveCategoryDraft = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -483,12 +511,63 @@ export function AdminMenuPage() {
             <h2 className="text-lg font-semibold text-ink dark:text-white">{t("menuAdmin.items")}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">{t("menuAdmin.itemsHelp")}</p>
           </div>
-          <label className="relative block w-full sm:max-w-xs">
-            <span className="sr-only">{t("menuAdmin.search")}</span>
-            <Search aria-hidden="true" className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-            <input className={`${inputClass} mt-0 ps-10`} onChange={(event) => setSearch(event.target.value)} placeholder={t("menuAdmin.search")} value={search} />
-          </label>
         </div>
+        <SearchFilterBar
+          onClear={() => {
+            setSearch("");
+            setCategoryFilter("");
+            setAvailabilityFilter("");
+            setVisibilityFilter("");
+            setSort("name");
+            setCreatedFrom("");
+            setCreatedTo("");
+          }}
+          onSearchChange={setSearch}
+          search={search}
+          searchPlaceholder={t("menuAdmin.search")}
+        >
+          <label className="min-w-36">
+            <span className="sr-only">{t("menuAdmin.categoryFilter")}</span>
+            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}>
+              <option value="">{t("menuAdmin.allCategories")}</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{isArabic ? category.name_ar : category.name_en}</option>)}
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="sr-only">{t("menuAdmin.availabilityFilter")}</span>
+            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setAvailabilityFilter(event.target.value)} value={availabilityFilter}>
+              <option value="">{t("common.allAvailability")}</option>
+              <option value="available">{t("menuAdmin.available")}</option>
+              <option value="unavailable">{t("menuAdmin.unavailable")}</option>
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="sr-only">{t("menuAdmin.visibilityFilter")}</span>
+            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setVisibilityFilter(event.target.value)} value={visibilityFilter}>
+              <option value="">{t("common.allVisibility")}</option>
+              <option value="active">{t("common.active")}</option>
+              <option value="hidden">{t("menuAdmin.hidden")}</option>
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="sr-only">{t("common.sort")}</span>
+            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setSort(event.target.value as typeof sort)} value={sort}>
+              <option value="name">{t("common.sortAlphabetically")}</option>
+              <option value="newest">{t("common.sortNewest")}</option>
+              <option value="oldest">{t("common.sortOldest")}</option>
+              <option value="price-high">{t("common.sortHighestPrice")}</option>
+              <option value="price-low">{t("common.sortLowestPrice")}</option>
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.fromDate")}</span>
+            <input aria-label={t("common.fromDate")} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setCreatedFrom(event.target.value)} type="date" value={createdFrom} />
+          </label>
+          <label className="min-w-36">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.toDate")}</span>
+            <input aria-label={t("common.toDate")} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setCreatedTo(event.target.value)} type="date" value={createdTo} />
+          </label>
+        </SearchFilterBar>
         {!loading && filteredItems.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
             {items.length ? t("menuAdmin.noSearchResults") : t("menuAdmin.noItems")}

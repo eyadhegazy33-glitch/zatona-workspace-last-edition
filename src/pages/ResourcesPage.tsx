@@ -12,10 +12,11 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import { useAuth } from "../hooks/useAuth";
 import { useResources } from "../hooks/useResources";
 import {
@@ -86,6 +87,16 @@ const typeIcons: Record<ResourceType, typeof Armchair> = {
   table: Table2,
 };
 
+function matchesDateRange(value: string, from: string, to: string): boolean {
+  const timestamp = new Date(value).getTime();
+  const fromTime = from ? new Date(`${from}T00:00:00`).getTime() : null;
+  const endOfDay = to ? new Date(`${to}T00:00:00`) : null;
+  endOfDay?.setDate(endOfDay.getDate() + 1);
+  const toTime = endOfDay?.getTime() ?? null;
+  return (fromTime === null || timestamp >= fromTime) &&
+    (toTime === null || timestamp < toTime);
+}
+
 function getErrorKey(cause: unknown): string {
   const message =
     cause && typeof cause === "object" && "message" in cause
@@ -108,6 +119,9 @@ function getErrorKey(cause: unknown): string {
   }
   if (message.includes("resource occupied")) {
     return "resources.errors.resourceOccupied";
+  }
+  if (message.includes("resource has active bookings")) {
+    return "resources.errors.resourceHasBookings";
   }
   if (message.includes("not allowed")) {
     return "resources.errors.permission";
@@ -140,9 +154,7 @@ function getErrorKey(cause: unknown): string {
     typeof cause === "object" &&
     cause !== null &&
     "code" in cause &&
-    (cause.code === "42883" ||
-      cause.code === "23503" ||
-      cause.code === "PGRST202")
+    (cause.code === "42883" || cause.code === "PGRST202")
   ) {
     return "resources.errors.databaseMigrationRequired";
   }
@@ -150,7 +162,7 @@ function getErrorKey(cause: unknown): string {
 }
 
 export function ResourcesPage() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const { permissions } = useAuth();
   const canRegisterCustomers =
     permissions.includes("customers.view") &&
@@ -172,6 +184,11 @@ export function ResourcesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [resourceView, setResourceView] = useState<"all" | "active" | "archived">("all");
+  const [resourceSearch, setResourceSearch] = useState("");
+  const [resourceType, setResourceType] = useState<ResourceType | "">("");
+  const [resourceSort, setResourceSort] = useState<"name" | "newest" | "oldest">("name");
+  const [resourceFrom, setResourceFrom] = useState("");
+  const [resourceTo, setResourceTo] = useState("");
   const [registrationResource, setRegistrationResource] =
     useState<Resource | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -240,13 +257,31 @@ export function ResourcesPage() {
       capacity: 1,
     },
   });
-  const visibleResources = resources.filter((resource) =>
-    resourceView === "all"
-      ? true
-      : resourceView === "active"
-        ? resource.active
-        : !resource.active,
-  );
+  const visibleResources = useMemo(() => {
+    const term = resourceSearch.trim().toLocaleLowerCase();
+    const collator = new Intl.Collator(i18n.language, { sensitivity: "base" });
+    return resources
+      .filter((resource) => {
+        const matchesView = resourceView === "all" ||
+          (resourceView === "active" ? resource.active : !resource.active);
+        const matchesSearch = !term || [
+          resource.name,
+          resource.id,
+          resource.type,
+        ].some((value) => value.toLocaleLowerCase().includes(term));
+        return matchesView &&
+          (!resourceType || resource.type === resourceType) &&
+          matchesSearch &&
+          matchesDateRange(resource.created_at, resourceFrom, resourceTo);
+      })
+      .sort((left, right) => {
+        if (resourceSort === "newest" || resourceSort === "oldest") {
+          const direction = resourceSort === "newest" ? -1 : 1;
+          return direction * (Date.parse(left.created_at) - Date.parse(right.created_at));
+        }
+        return collator.compare(left.name, right.name);
+      });
+  }, [i18n.language, resourceFrom, resourceSearch, resourceSort, resourceTo, resourceType, resourceView, resources]);
   const resourcePendingDeletion = resourceToDelete
     ? resources.find((resource) => resource.id === resourceToDelete.id) ??
       resourceToDelete
@@ -542,21 +577,6 @@ export function ResourcesPage() {
           {t("resources.listTitle")}
         </h2>
         <div className="flex items-center gap-2">
-          <label className="sr-only" htmlFor="resource-view-filter">
-            {t("resources.fields.view")}
-          </label>
-          <select
-            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
-            id="resource-view-filter"
-            onChange={(event) =>
-              setResourceView(event.target.value as typeof resourceView)
-            }
-            value={resourceView}
-          >
-            <option value="all">{t("resources.filters.all")}</option>
-            <option value="active">{t("resources.filters.active")}</option>
-            <option value="archived">{t("resources.filters.archived")}</option>
-          </select>
           <button
             aria-label={t("resources.actions.refresh")}
             className="inline-flex size-10 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -572,6 +592,52 @@ export function ResourcesPage() {
           </button>
         </div>
       </div>
+      <SearchFilterBar
+        className="mt-4"
+        onClear={() => {
+          setResourceSearch("");
+          setResourceView("all");
+          setResourceType("");
+          setResourceSort("name");
+          setResourceFrom("");
+          setResourceTo("");
+        }}
+        onSearchChange={setResourceSearch}
+        search={resourceSearch}
+        searchPlaceholder={t("resources.search")}
+      >
+        <label className="min-w-36">
+          <span className="sr-only">{t("resources.fields.view")}</span>
+          <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setResourceView(event.target.value as typeof resourceView)} value={resourceView}>
+            <option value="all">{t("resources.filters.all")}</option>
+            <option value="active">{t("resources.filters.active")}</option>
+            <option value="archived">{t("resources.filters.archived")}</option>
+          </select>
+        </label>
+        <label className="min-w-36">
+          <span className="sr-only">{t("resources.fields.type")}</span>
+          <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setResourceType(event.target.value as ResourceType | "")} value={resourceType}>
+            <option value="">{t("resources.filters.allTypes")}</option>
+            {(["seat", "room", "table"] as const).map((type) => <option key={type} value={type}>{t(`resources.types.${type}`)}</option>)}
+          </select>
+        </label>
+        <label className="min-w-36">
+          <span className="sr-only">{t("common.sort")}</span>
+          <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setResourceSort(event.target.value as typeof resourceSort)} value={resourceSort}>
+            <option value="name">{t("common.sortAlphabetically")}</option>
+            <option value="newest">{t("common.sortNewest")}</option>
+            <option value="oldest">{t("common.sortOldest")}</option>
+          </select>
+        </label>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.fromDate")}</span>
+          <input aria-label={t("common.fromDate")} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setResourceFrom(event.target.value)} type="date" value={resourceFrom} />
+        </label>
+        <label className="min-w-36">
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.toDate")}</span>
+          <input aria-label={t("common.toDate")} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" onChange={(event) => setResourceTo(event.target.value)} type="date" value={resourceTo} />
+        </label>
+      </SearchFilterBar>
       {!canRegisterCustomers && (
         <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
           {t("resources.registration.permissionNotice")}

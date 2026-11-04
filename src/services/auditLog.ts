@@ -50,6 +50,8 @@ export type AuditFilters = {
   search: string | null;
 };
 
+export type AuditSort = "newest" | "oldest" | "name";
+
 function parsePage<T extends z.ZodType>(
   value: unknown,
   rowSchema: T,
@@ -61,14 +63,16 @@ export async function listAuditLogs(
   filters: AuditFilters,
   limit: number,
   offset: number,
+  sort: AuditSort = "newest",
 ) {
-  const { data, error } = await getSupabaseClient().rpc("list_audit_logs", {
+  const { data, error } = await getSupabaseClient().rpc("list_audit_logs_sorted", {
     p_user: filters.userId,
     p_action: filters.action,
     p_entity: filters.entity,
     p_from: filters.from,
     p_to: filters.to,
     p_search: filters.search,
+    p_sort: sort,
     p_limit: limit,
     p_offset: offset,
   });
@@ -82,11 +86,15 @@ export async function listAuditScans(
   to: string | null,
   limit: number,
   offset: number,
+  search: string | null = null,
+  sort: AuditSort = "newest",
 ) {
-  const { data, error } = await getSupabaseClient().rpc("list_audit_scans", {
+  const { data, error } = await getSupabaseClient().rpc("list_audit_scans_sorted", {
     p_result: result,
     p_from: from,
     p_to: to,
+    p_search: search,
+    p_sort: sort,
     p_limit: limit,
     p_offset: offset,
   });

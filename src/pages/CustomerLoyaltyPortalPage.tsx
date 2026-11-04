@@ -172,9 +172,23 @@ export function CustomerLoyaltyPortalPage() {
                     <span className="text-xs text-slate-500">{t("customerLoyalty.portal.stock", { count: reward.stock_remaining })}</span>
                   )}
                 </div>
+                {reward.minimum_checkins > 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    {t("customerLoyalty.portal.minimumVisits", {
+                      count: reward.minimum_checkins,
+                    })}
+                  </p>
+                )}
+                {!reward.can_redeem && (
+                  <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300" role="status">
+                    {t(`customerLoyalty.portal.availability.${reward.availability_reason}`, {
+                      count: reward.minimum_checkins,
+                    })}
+                  </p>
+                )}
                 <button
                   className="mt-4 min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={data.points < reward.points_cost || busyReward !== null}
+                  disabled={!reward.can_redeem || busyReward !== null}
                   onClick={() => void handleRewardRequest(reward.id)}
                   type="button"
                 >

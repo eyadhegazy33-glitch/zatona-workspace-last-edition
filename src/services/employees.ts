@@ -22,6 +22,8 @@ export type EmployeePage = {
   total: number;
 };
 
+export type EmployeeSort = "updated_at" | "created_at" | "first_name";
+
 type EmployeeRow = Omit<Employee, "role"> & {
   role: { name: string } | { name: string }[] | null;
 };
@@ -34,6 +36,10 @@ export async function getEmployees(input: {
   search: string;
   roleId: string;
   status: string;
+  sort: EmployeeSort;
+  ascending: boolean;
+  fromDate: string;
+  toDate: string;
   page: number;
   pageSize: number;
 }): Promise<EmployeePage> {
@@ -46,7 +52,7 @@ export async function getEmployees(input: {
     )
     .not("role_id", "is", null)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false })
+    .order(input.sort, { ascending: input.ascending, nullsFirst: false })
     .range(from, from + input.pageSize - 1);
 
   if (input.roleId) {
@@ -56,10 +62,25 @@ export async function getEmployees(input: {
     query = query.eq("status", input.status as EmployeeStatus);
   }
   if (input.search.trim()) {
-    const term = `"%${escapeSearchTerm(input.search.trim())}%"`;
-    query = query.or(
-      `first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term}`,
-    );
+    const search = input.search.trim();
+    const term = `"%${escapeSearchTerm(search)}%"`;
+    const clauses = [
+      `first_name.ilike.${term}`,
+      `last_name.ilike.${term}`,
+      `email.ilike.${term}`,
+    ];
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search)) {
+      clauses.push(`id.eq.${search}`);
+    }
+    query = query.or(clauses.join(","));
+  }
+  if (input.fromDate) {
+    query = query.gte("created_at", new Date(`${input.fromDate}T00:00:00`).toISOString());
+  }
+  if (input.toDate) {
+    const endOfDay = new Date(`${input.toDate}T00:00:00`);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    query = query.lt("created_at", endOfDay.toISOString());
   }
 
   const { data, error, count } = await query;

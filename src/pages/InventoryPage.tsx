@@ -8,12 +8,13 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
-  Search,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
+import { InventoryRecipesTab } from "../components/InventoryRecipesTab";
+import { SearchFilterBar } from "../components/SearchFilterBar";
 import { useAuth } from "../hooks/useAuth";
 import { getSupabaseClient } from "../lib/supabase";
 
@@ -31,10 +32,13 @@ type InventoryMovement = {
   id: number;
   created_at: string;
   change: number;
+  qty_before: number;
   qty_after: number;
   reason: string;
+  notes: string | null;
   created_by: string | null;
   created_by_name: string | null;
+  order_id: string | null;
 };
 
 type ItemForm = {
@@ -51,6 +55,7 @@ type AdjustmentForm = {
   item: InventoryItem;
   change: string;
   reason: string;
+  notes: string;
 };
 
 const itemSchema = z.object({
@@ -64,14 +69,15 @@ const itemSchema = z.object({
 
 const itemQuantitySchema = z.object({
   quantity: z.coerce.number().finite().min(0).max(9999999999.99)
-    .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8),
+    .refine((value) => Math.abs(value * 10000 - Math.round(value * 10000)) < 1e-7),
   reason: z.string().trim().max(500),
 });
 
 const adjustmentSchema = z.object({
   change: z.coerce.number().finite().min(-9999999999.99).max(9999999999.99)
-    .refine((value) => value !== 0 && Math.abs(value * 100 - Math.round(value * 100)) < 1e-8),
+    .refine((value) => value !== 0 && Math.abs(value * 10000 - Math.round(value * 10000)) < 1e-7),
   reason: z.string().trim().min(3).max(500),
+  notes: z.string().trim().max(500),
 });
 
 function getErrorMessage(error: unknown): string {
@@ -96,6 +102,10 @@ export function InventoryPage() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("");
+  const [sort, setSort] = useState<"name" | "newest" | "oldest" | "quantity-high" | "quantity-low">("name");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
   const [itemForm, setItemForm] = useState<ItemForm | null>(null);
   const [adjustment, setAdjustment] = useState<AdjustmentForm | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -104,6 +114,7 @@ export function InventoryPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [formError, setFormError] = useState("");
+  const [activeTab, setActiveTab] = useState<"stock" | "recipes">("stock");
   const selectedItemId = selectedItem?.id;
   const autoOpenedItemId = useRef<string | null>(null);
 
@@ -131,7 +142,7 @@ export function InventoryPage() {
     setHistoryLoading(true);
     try {
       const { data, error: resultError } = await getSupabaseClient()
-        .rpc("list_inventory_movements", { p_item: itemId });
+        .rpc("list_inventory_movements_detailed", { p_item: itemId });
       if (resultError) throw resultError;
       setFormError("");
       setMovements(data);
@@ -182,17 +193,39 @@ export function InventoryPage() {
 
   const filteredItems = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(i18n.language);
+    const collator = new Intl.Collator(i18n.language, { sensitivity: "base" });
     return items.filter((item) => {
       const matchesQuery = !needle ||
+        item.id.toLocaleLowerCase().includes(needle) ||
         item.name.toLocaleLowerCase(i18n.language).includes(needle) ||
         item.unit.toLocaleLowerCase(i18n.language).includes(needle);
       const isLow = item.qty <= item.min_qty;
-      return matchesQuery && (!lowOnly || isLow);
+      const matchesFrom = !createdFrom ||
+        Date.parse(item.created_at) >= new Date(`${createdFrom}T00:00:00`).getTime();
+      const endOfDay = createdTo ? new Date(`${createdTo}T00:00:00`) : null;
+      endOfDay?.setDate(endOfDay.getDate() + 1);
+      const matchesTo = !createdTo ||
+        Date.parse(item.created_at) < (endOfDay?.getTime() ?? 0);
+      return matchesQuery &&
+        (!lowOnly || isLow) &&
+        (!activeFilter || (activeFilter === "active" ? item.active : !item.active)) &&
+        matchesFrom &&
+        matchesTo;
+    }).sort((left, right) => {
+      if (sort === "newest" || sort === "oldest") {
+        const direction = sort === "newest" ? -1 : 1;
+        return direction * (Date.parse(left.created_at) - Date.parse(right.created_at));
+      }
+      if (sort === "quantity-high" || sort === "quantity-low") {
+        const direction = sort === "quantity-high" ? -1 : 1;
+        return direction * (left.qty - right.qty);
+      }
+      return collator.compare(left.name, right.name);
     });
-  }, [i18n.language, items, lowOnly, query]);
+  }, [activeFilter, createdFrom, createdTo, i18n.language, items, lowOnly, query, sort]);
 
   const formatNumber = (value: number) => new Intl.NumberFormat(i18n.language, {
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(value);
   const formatDate = (value: string) => new Intl.DateTimeFormat(i18n.language, {
     dateStyle: "medium",
@@ -265,6 +298,7 @@ export function InventoryPage() {
           item: data,
           change: "",
           reason: "",
+          notes: "",
         });
       } else {
         setNotice(parsedQuantity.data.quantity > 0
@@ -300,7 +334,7 @@ export function InventoryPage() {
   const openAdjustment = (item: InventoryItem, reason = "", change = "") => {
     setFormError("");
     setNotice("");
-    setAdjustment({ item, reason, change });
+    setAdjustment({ item, reason, change, notes: "" });
   };
 
   const adjustStock = async () => {
@@ -317,6 +351,7 @@ export function InventoryPage() {
         p_item: adjustment.item.id,
         p_change: parsed.data.change,
         p_reason: parsed.data.reason,
+        p_notes: parsed.data.notes || null,
       });
       if (rpcError) throw rpcError;
       setAdjustment(null);
@@ -358,30 +393,76 @@ export function InventoryPage() {
             <Boxes size={18} />{t("inventory.eyebrow")}
           </p>
           <h1 className="mt-1 text-3xl font-bold text-ink dark:text-white">{t("inventory.title")}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{t("inventory.description")}</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{t(activeTab === "recipes" ? "inventory.recipesDescription" : "inventory.description")}</p>
         </div>
-        {canManage && (
-          <button className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 font-semibold text-white" onClick={openNewItem} type="button">
-            <Plus size={18} />{t("inventory.addItem")}
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canManage && (
+            <button
+              aria-pressed={activeTab === "recipes"}
+              className={`min-h-11 rounded-xl border px-4 font-semibold ${activeTab === "recipes" ? "border-brand bg-brand/10 text-brand" : "border-slate-300 dark:border-slate-700"}`}
+              onClick={() => setActiveTab(activeTab === "recipes" ? "stock" : "recipes")}
+              type="button"
+            >
+              {t(activeTab === "recipes" ? "inventory.stock" : "inventory.recipes")}
+            </button>
+          )}
+          {canManage && activeTab === "stock" && (
+            <button className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 font-semibold text-white" onClick={openNewItem} type="button">
+              <Plus size={18} />{t("inventory.addItem")}
+            </button>
+          )}
+        </div>
       </header>
 
+      {activeTab === "recipes" && canManage ? <InventoryRecipesTab /> : <>
       {error && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert"><span>{t(error)}</span><button className="font-semibold underline" onClick={() => void refresh()} type="button">{t("inventory.retry")}</button></div>}
       {notice && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">{notice}</p>}
 
-      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="relative min-w-[min(100%,16rem)] flex-1">
-            <span className="sr-only">{t("inventory.search")}</span>
-            <Search aria-hidden="true" className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input className={`${inputClass} ps-10`} onChange={(event) => setQuery(event.target.value)} placeholder={t("inventory.search")} value={query} />
-          </label>
+      <section className="space-y-4">
+        <SearchFilterBar
+          onClear={() => {
+            setQuery("");
+            setLowOnly(false);
+            setActiveFilter("");
+            setSort("name");
+            setCreatedFrom("");
+            setCreatedTo("");
+          }}
+          onSearchChange={setQuery}
+          search={query}
+          searchPlaceholder={t("inventory.search")}
+        >
           <label className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-medium dark:border-slate-700">
             <input checked={lowOnly} className="size-4 accent-brand" onChange={(event) => setLowOnly(event.target.checked)} type="checkbox" />
             {t("inventory.lowOnly")}
           </label>
-        </div>
+          <label className="min-w-36">
+            <span className="sr-only">{t("inventory.filterStatus")}</span>
+            <select className={inputClass} onChange={(event) => setActiveFilter(event.target.value)} value={activeFilter}>
+              <option value="">{t("inventory.allStatuses")}</option>
+              <option value="active">{t("common.active")}</option>
+              <option value="inactive">{t("inventory.inactive")}</option>
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="sr-only">{t("common.sort")}</span>
+            <select className={inputClass} onChange={(event) => setSort(event.target.value as typeof sort)} value={sort}>
+              <option value="name">{t("common.sortAlphabetically")}</option>
+              <option value="newest">{t("common.sortNewest")}</option>
+              <option value="oldest">{t("common.sortOldest")}</option>
+              <option value="quantity-high">{t("common.sortHighestQuantity")}</option>
+              <option value="quantity-low">{t("common.sortLowestQuantity")}</option>
+            </select>
+          </label>
+          <label className="min-w-36">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.fromDate")}</span>
+            <input aria-label={t("common.fromDate")} className={inputClass} onChange={(event) => setCreatedFrom(event.target.value)} type="date" value={createdFrom} />
+          </label>
+          <label className="min-w-36">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">{t("common.toDate")}</span>
+            <input aria-label={t("common.toDate")} className={inputClass} onChange={(event) => setCreatedTo(event.target.value)} type="date" value={createdTo} />
+          </label>
+        </SearchFilterBar>
 
         {loading ? (
           <div className="grid min-h-48 place-items-center" role="status"><LoaderCircle className="animate-spin text-brand" size={30} /></div>
@@ -451,8 +532,8 @@ export function InventoryPage() {
                     {historyLoading ? <div className="grid min-h-32 place-items-center"><LoaderCircle className="animate-spin text-brand" size={25} /></div> : formError ? null : movements.length === 0 ? <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-300">{t("inventory.noMovements")}</p> : (
                       <ol className="mt-4 divide-y divide-slate-200 dark:divide-slate-800">
                         {movements.map((movement) => <li className="grid gap-1 py-4 sm:grid-cols-[1fr_auto]" key={movement.id}>
-                          <div><p className="font-semibold text-ink dark:text-white">{movement.reason}</p><p className="mt-1 text-xs text-slate-500">{formatDate(movement.created_at)} · {movement.created_by_name ?? t("inventory.unknownUser")}</p></div>
-                          <div className="text-start sm:text-end"><p className={`font-bold tabular-nums ${movement.change < 0 ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{movement.change > 0 ? "+" : ""}{formatNumber(movement.change)} {selectedItem.unit}</p><p className="text-xs text-slate-500">{t("inventory.after")}: {formatNumber(movement.qty_after)}</p></div>
+                          <div><p className="font-semibold text-ink dark:text-white">{movement.reason}</p>{movement.notes && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{movement.notes}</p>}<p className="mt-1 text-xs text-slate-500">{formatDate(movement.created_at)} · {movement.created_by_name ?? t("inventory.unknownUser")}</p></div>
+                          <div className="text-start sm:text-end"><p className={`font-bold tabular-nums ${movement.change < 0 ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{movement.change > 0 ? "+" : ""}{formatNumber(movement.change)} {selectedItem.unit}</p><p className="text-xs text-slate-500">{t("inventory.before")}: {formatNumber(movement.qty_before)} · {t("inventory.after")}: {formatNumber(movement.qty_after)}</p>{movement.order_id && <p className="text-xs font-medium text-brand">{t("inventory.relatedOrder", { id: movement.order_id })}</p>}</div>
                         </li>)}
                       </ol>
                     )}
@@ -490,7 +571,7 @@ export function InventoryPage() {
                         quantityToAdd: event.target.value,
                       }))}
                       placeholder={t("inventory.quantityToAddPlaceholder")}
-                      step="0.01"
+                      step="0.0001"
                       type="number"
                       value={itemForm.quantityToAdd}
                     />
@@ -525,9 +606,10 @@ export function InventoryPage() {
               ) : adjustment && (
                 <div className="space-y-4">
                   <p className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-950"><span className="font-semibold">{adjustment.item.name}</span> · {t("inventory.currentQuantity", { quantity: formatNumber(adjustment.item.qty), unit: adjustment.item.unit })}</p>
-                  <label className="block text-sm font-medium"><span className="mb-1 block">{t("inventory.changeAmount")}</span><input autoFocus className={inputClass} onChange={(event) => setAdjustment((value) => value && ({ ...value, change: event.target.value }))} placeholder={t("inventory.changePlaceholder")} step="0.01" type="number" value={adjustment.change} /><span className="mt-1 block text-xs text-slate-500">{t("inventory.changeHelp")}</span></label>
-                  <div className="flex flex-wrap gap-2">{["Delivery", "Count correction", "Waste", "Used", "Running low", "Finished"].map((reason) => <button className={`min-h-9 rounded-full border px-3 text-xs font-medium ${adjustment.reason === reason ? "border-brand bg-brand/10 text-brand" : "border-slate-300 dark:border-slate-700"}`} key={reason} onClick={() => setAdjustment((value) => value && ({ ...value, reason }))} type="button">{t(`inventory.reasons.${reason}`)}</button>)}</div>
+                  <label className="block text-sm font-medium"><span className="mb-1 block">{t("inventory.changeAmount")}</span><input autoFocus className={inputClass} onChange={(event) => setAdjustment((value) => value && ({ ...value, change: event.target.value }))} placeholder={t("inventory.changePlaceholder")} step="0.0001" type="number" value={adjustment.change} /><span className="mt-1 block text-xs text-slate-500">{t("inventory.changeHelp")}</span></label>
+                  <div className="flex flex-wrap gap-2">{["Delivery", "Count correction", "Damaged", "Expired", "Waste", "Used", "Running low", "Finished"].map((reason) => <button className={`min-h-9 rounded-full border px-3 text-xs font-medium ${adjustment.reason === reason ? "border-brand bg-brand/10 text-brand" : "border-slate-300 dark:border-slate-700"}`} key={reason} onClick={() => setAdjustment((value) => value && ({ ...value, reason }))} type="button">{t(`inventory.reasons.${reason}`)}</button>)}</div>
                   <label className="block text-sm font-medium"><span className="mb-1 block">{t("inventory.reason")}</span><input className={inputClass} maxLength={500} onChange={(event) => setAdjustment((value) => value && ({ ...value, reason: event.target.value }))} value={adjustment.reason} /></label>
+                  <label className="block text-sm font-medium"><span className="mb-1 block">{t("inventory.adjustNotes")}</span><textarea className={`${inputClass} min-h-20 py-3`} maxLength={500} onChange={(event) => setAdjustment((value) => value && ({ ...value, notes: event.target.value }))} value={adjustment.notes} /></label>
                   <p className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"><CircleHelp className="mt-0.5 shrink-0" size={15} />{t("inventory.adjustNote")}</p>
                   <div className="flex justify-end gap-2"><button className="min-h-10 rounded-lg border border-slate-300 px-4 font-semibold dark:border-slate-700" disabled={busy} onClick={closeDialogs} type="button">{t("inventory.cancel")}</button><button className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand px-4 font-semibold text-white disabled:opacity-50" disabled={busy} onClick={() => void adjustStock()} type="button">{busy && <LoaderCircle className="animate-spin" size={16} />}{t("inventory.recordAdjustment")}</button></div>
                 </div>
@@ -536,6 +618,7 @@ export function InventoryPage() {
           )}
         </div>
       )}
+      </>}
     </main>
   );
 }
